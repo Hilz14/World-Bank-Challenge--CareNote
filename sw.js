@@ -1,8 +1,8 @@
-// Ondera Scribe offline cache.
+// GOLDNexus CareNote offline cache.
 // Same-site files: network first, so updates show while online; cached copy when offline.
 // Library and font files from CDNs: cache first.
 // Hugging Face model files are skipped here because Transformers.js caches them itself.
-const CACHE = 'ondera-scribe-v1';
+const CACHE = 'goldnexus-carenote-v2';
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', './index.html'])).then(() => self.skipWaiting()));
@@ -11,7 +11,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k.startsWith('ondera-scribe') && k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => (k.startsWith('goldnexus-carenote') || k.startsWith('ondera-scribe')) && k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -31,8 +31,9 @@ self.addEventListener('fetch', e => {
   if (/(^|\.)huggingface\.co$|(^|\.)hf\.co$/.test(url.hostname)) return;
 
   if (url.origin === self.location.origin) {
+    // Always check GitHub for a newer copy while online, instead of using the browser's 10 minute saved copy.
     e.respondWith(
-      fetch(req).then(res => save(req, res))
+      fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(res => save(req, res))
         .catch(() => caches.match(req).then(hit => hit || caches.match('./index.html')))
     );
     return;

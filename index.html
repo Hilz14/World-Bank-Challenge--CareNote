@@ -306,9 +306,8 @@ dl dd{margin:0;white-space:pre-wrap}
 <div id="toast" role="status" aria-live="polite" hidden></div>
 
 <script type="module">
-import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
-env.allowLocalModels = false;
-env.useBrowserCache = true;
+// The speech library loads inside loadModel(), so the sign-in screen still appears if it fails to download.
+const LIB_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
 
 /* ---------- constants ---------- */
 const MODEL_ID = 'Xenova/whisper-tiny.en';
@@ -541,6 +540,8 @@ function setModelState(st, detail) {
 async function loadModel() {
   const files = {}; setModelState('loading'); $('#model-label').textContent = 'Preparing the speech model.';
   try {
+    const { pipeline, env } = await import(LIB_URL);
+    env.allowLocalModels = false; env.useBrowserCache = true;
     S.asr = await pipeline('automatic-speech-recognition', MODEL_ID, {
       dtype: 'q8', // 8-bit files: about 39 MB in total instead of about 145 MB
       progress_callback: p => {
