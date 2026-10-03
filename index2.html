@@ -1,0 +1,967 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GOLDNexus CareNote</title>
+<meta name="theme-color" content="#0B6E4F">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF2F0; --surface:#FFFFFF; --ink:#16233A; --muted:#4F5B6B; --line:#C6D0CB;
+  --primary:#0B6E4F; --twi-bg:#FCEBC4; --twi-ink:#6B4300; --twi-line:#B7791F;
+  --danger:#A61B1B; --ok:#0B6E4F; --focus:#1D4ED8; --r-s:6px; --r-m:12px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:400 1rem/1.5 'Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+#app{max-width:44rem;margin:0 auto;padding:0 1rem 5rem}
+.locked #app{visibility:hidden}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;padding:1rem 0 .5rem}
+.top h1{font-size:1.375rem;line-height:1.2;margin:0 auto 0 0;letter-spacing:-.01em}
+.chip{font-size:.875rem;padding:.25rem .65rem;border-radius:999px;background:var(--surface);border:1.5px solid var(--line)}
+.chip.good{border-color:var(--ok);color:var(--ok)}
+.chip.bad{border-color:var(--danger);color:var(--danger)}
+#model-progress{width:100%;margin:.25rem 0 .5rem}
+progress{width:100%;height:.5rem;accent-color:var(--primary)}
+nav.tabs{display:flex;gap:.25rem;overflow-x:auto;border-bottom:2px solid var(--line);margin-bottom:1rem;scrollbar-width:none}
+nav.tabs button{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;padding:.75rem .7rem;font:inherit;color:var(--muted);min-height:44px;white-space:nowrap;cursor:pointer}
+nav.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--primary);font-weight:700}
+.panel[hidden]{display:none}
+section.step{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m);padding:1rem 1rem 1.25rem;margin-bottom:1rem}
+h2{font-size:1.125rem;line-height:1.3;margin:0 0 .5rem;display:flex;gap:.6rem;align-items:center}
+h2 .n{display:inline-grid;place-items:center;width:1.75rem;height:1.75rem;border-radius:50%;background:var(--ink);color:#fff;font-size:.9rem;flex:none}
+h3{font-size:1rem;margin:0}
+label{display:block;font-weight:700;margin:.75rem 0 .25rem}
+input:not([type=checkbox]):not([type=radio]),select,textarea{width:100%;font:inherit;font-weight:400;padding:.6rem .7rem;border:1.5px solid var(--line);border-radius:var(--r-s);background:#fff;color:var(--ink);margin-top:.25rem;min-height:44px}
+textarea{resize:vertical}
+textarea.unconfirmed{border-style:dashed;background:#FAFBFA}
+.check{display:flex;gap:.6rem;align-items:flex-start;font-weight:400;margin:.5rem 0}
+.check input{width:1.4rem;height:1.4rem;margin:.1rem 0 0;flex:none;accent-color:var(--primary)}
+.btn{font:inherit;font-weight:700;min-height:44px;padding:.55rem 1rem;border-radius:var(--r-s);border:1.5px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.big{min-height:56px;font-size:1.0625rem;padding:.75rem 1.25rem}
+.btn.twi{background:var(--twi-bg);border-color:var(--twi-line);color:var(--twi-ink)}
+.btn.quiet{border-color:transparent;background:none;text-decoration:underline}
+.btn.small{padding:.35rem .75rem;font-size:.9375rem}
+.btn.ok{background:#E3F1EB;border-color:var(--ok);color:var(--ok)}
+.btn.recording{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.recording::before{content:"";display:inline-block;width:.6rem;height:.6rem;border-radius:50%;background:#fff;margin-right:.5rem;vertical-align:middle}
+@media (prefers-reduced-motion:no-preference){
+  .btn.recording::before{animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.25}}
+}
+.btn:disabled,.btn[aria-disabled=true]{opacity:.45;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem}
+.recrow{display:flex;gap:.5rem;flex-wrap:wrap}
+.count{display:inline-block;min-width:1.6rem;margin-left:.4rem;padding:0 .35rem;border-radius:999px;background:var(--twi-line);color:#fff;text-align:center}
+.clip{border-top:1px solid var(--line);margin-top:1rem;padding-top:1rem}
+.cliphead{display:flex;flex-wrap:wrap;gap:.5rem;align-items:baseline}
+.meta{color:var(--muted);font-size:.875rem}
+.tag{font-size:.8125rem;padding:.05rem .5rem;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.tag.ok{border-color:var(--ok);color:var(--ok)}
+.transcript{line-height:2.2;font-size:1.0625rem;margin:.5rem 0}
+.w{font:inherit;font-style:italic;background:none;border:0;border-bottom:2px dashed #8E9A94;padding:0 .1rem;color:var(--ink);cursor:pointer}
+.w.flag{font-style:normal;font-weight:700;background:var(--twi-bg);border-bottom:3px solid var(--twi-line);color:var(--twi-ink);border-radius:3px}
+.w.flag::after{content:"Twi";font-size:.62em;vertical-align:super;margin-left:.2em}
+.w:disabled{cursor:default}
+.flags{margin-top:.75rem;display:grid;gap:.75rem}
+.flagrow{border-left:4px solid var(--twi-line);background:#FFF9EC;padding:.6rem .75rem;border-radius:0 var(--r-s) var(--r-s) 0}
+.flaghead{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:0 .75rem}
+@media (max-width:480px){.pair{grid-template-columns:1fr}}
+.warn{border:2px solid var(--danger);border-radius:var(--r-s);padding:.6rem .75rem;margin:.5rem 0;background:#FDF1F1}
+.warn p{margin:0}
+.warnline{color:var(--danger);font-weight:700;margin:.4rem 0}
+.checkline{margin:.4rem 0}
+.checkline mark{background:#E6ECFA;color:var(--ink);padding:0 .3rem;border-radius:3px}
+.hint{color:var(--muted);margin:.25rem 0 .75rem}
+.small{font-size:.9rem}
+.live{font-weight:700}
+.field{margin-top:1.25rem}
+.fieldhead{display:flex;justify-content:space-between;align-items:flex-end;gap:.5rem}
+.fieldhead label{margin:0}
+.req{font-weight:400;color:var(--muted)}
+fieldset{border:0;padding:0;margin:0 0 1rem}
+legend{font-weight:700;margin-bottom:.25rem;padding:0}
+.pgroup.danger{border-left:4px solid var(--danger);padding-left:.75rem}
+.pgroup.danger legend{color:var(--danger)}
+.prow{padding:.5rem 0;border-bottom:1px solid #E3E8E5}
+.slots{display:flex;gap:.5rem;flex-wrap:wrap;margin-left:2rem}
+.slots label{font-weight:400;margin:.25rem 0}
+.slots select{width:auto}
+.twiline{margin:.25rem 0 0 2rem;color:var(--twi-ink)}
+.missing{color:var(--muted);font-style:italic}
+.blockers{margin:0;padding-left:1.25rem;color:var(--danger)}
+.empty{color:var(--muted);padding:.5rem 0}
+#toast{position:fixed;left:50%;bottom:calc(1rem + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:.75rem 1rem;border-radius:var(--r-s);width:max-content;max-width:min(36rem,calc(100% - 2rem));z-index:50}
+#lock{position:fixed;inset:0;background:var(--bg);z-index:40;overflow:auto;padding:max(2rem,env(safe-area-inset-top,0px)) 1rem 2rem}
+#lock[hidden]{display:none}
+#lock .inner{max-width:26rem;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m);padding:1.25rem}
+#lock h1{font-size:1.375rem;margin:0 0 1rem}
+.err{color:var(--danger);font-weight:700;min-height:1.5em;margin:.5rem 0 0}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:.5rem;border-bottom:1px solid var(--line);vertical-align:top}
+details.rec{border:1px solid var(--line);border-radius:var(--r-s);padding:.6rem .75rem;margin-bottom:.5rem;background:#fff}
+summary{cursor:pointer;min-height:44px}
+dl dt{font-weight:700;margin-top:.6rem}
+dl dd{margin:0;white-space:pre-wrap}
+.segrow,.vrow{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.35rem 0}
+.segrow .seg{flex:1 1 100%;color:var(--twi-ink)}
+.vrow .en{min-width:6.5rem}
+.vrow input{flex:1;min-width:8rem;width:auto;margin:0}
+.status{font-size:.875rem;color:var(--muted)}
+.status.yes{color:var(--ok);font-weight:700}
+.pset{padding:.75rem 0;border-bottom:1px solid var(--line)}
+.pset .en{font-weight:700;margin:0}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 .75rem}
+@media (max-width:520px){.grid3{grid-template-columns:1fr}}
+.prose p,.prose li{max-width:65ch}
+.prose h3{margin-top:1rem}
+</style>
+</head>
+<body class="locked">
+
+<div id="lock" role="dialog" aria-modal="true" aria-labelledby="lock-title">
+  <div class="inner">
+    <h1 id="lock-title">GOLDNexus CareNote</h1>
+    <div id="lock-body"></div>
+  </div>
+</div>
+
+<div id="app">
+  <header class="top">
+    <h1>GOLDNexus CareNote</h1>
+    <span class="chip" id="chip-model">Speech model: starting</span>
+    <span class="chip" id="chip-net">Online</span>
+    <span class="chip" id="who"></span>
+    <button class="btn small" data-action="lock-now">Lock</button>
+  </header>
+  <div id="model-progress" hidden>
+    <progress id="model-bar" max="1" value="0"></progress>
+    <p class="hint small" id="model-label" aria-live="polite"></p>
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" aria-selected="true" data-tab="consult">Consultation</button>
+    <button role="tab" aria-selected="false" data-tab="records">Records</button>
+    <button role="tab" aria-selected="false" data-tab="glossary">Glossary</button>
+    <button role="tab" aria-selected="false" data-tab="tests">Test log</button>
+    <button role="tab" aria-selected="false" data-tab="about">About</button>
+  </nav>
+
+  <main>
+    <div class="panel" id="tab-consult" role="tabpanel">
+      <section class="step">
+        <h2><span class="n">1</span>Start</h2>
+        <label for="c-ref">Patient reference <span class="req">(clinic number, not a name)</span></label>
+        <input id="c-ref" autocomplete="off" spellcheck="false">
+        <fieldset>
+          <legend>Mode</legend>
+          <label class="check"><input type="radio" name="mode" value="dictation" checked> Dictation</label>
+          <label class="check"><input type="radio" name="mode" value="typing"> Typing only, for timing tests</label>
+        </fieldset>
+        <label class="check"><input type="checkbox" id="c-consent"> The patient agreed to being recorded. Recordings stay on this phone and are deleted when the record is saved.</label>
+      </section>
+
+      <section class="step">
+        <h2><span class="n">2</span>Listen to the patient</h2>
+        <div id="patient"></div>
+      </section>
+
+      <section class="step">
+        <h2><span class="n">3</span>Write the record</h2>
+        <p class="hint">Dictated text appears with a dashed border until you confirm it. Nothing is saved until every filled field is confirmed.</p>
+        <div id="fields"></div>
+      </section>
+
+      <section class="step">
+        <h2><span class="n">4</span>Save</h2>
+        <div id="save"></div>
+      </section>
+    </div>
+
+    <div class="panel" id="tab-records" role="tabpanel" hidden>
+      <section class="step">
+        <h2>Saved records</h2>
+        <p class="hint">Only records saved by the clinician who is signed in are shown. They are decrypted on this phone with your PIN.</p>
+        <div id="records-list"></div>
+        <div class="actions"><button class="btn" data-action="rec-export">Export my records</button></div>
+      </section>
+    </div>
+
+    <div class="panel" id="tab-glossary" role="tabpanel" hidden>
+      <section class="step">
+        <h2>Twi glossary</h2>
+        <p class="hint">Built from translations clinicians confirm during consultations. It contains no patient details.</p>
+        <div id="gloss"></div>
+        <div class="pair">
+          <label>Twi word<input id="g-twi" autocomplete="off" spellcheck="false"></label>
+          <label>English meaning<input id="g-en" autocomplete="off"></label>
+        </div>
+        <div class="actions">
+          <button class="btn" data-action="gloss-add">Add to glossary</button>
+          <button class="btn" data-action="gloss-export">Export as CSV</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="panel" id="tab-tests" role="tabpanel" hidden>
+      <section class="step">
+        <h2>Time per record</h2>
+        <p class="hint">Measured from the first recording or edit to saving. Use the same test cases in both modes for a fair comparison.</p>
+        <div id="timings"></div>
+      </section>
+      <section class="step">
+        <h2>Twi highlighting test</h2>
+        <p class="hint">After recording a test sentence, count by ear and enter the numbers. The app shows the calculation.</p>
+        <div id="latest-clip"></div>
+        <div class="grid3">
+          <label>Twi words spoken<input id="t-n" type="number" min="0" inputmode="numeric"></label>
+          <label>Twi words highlighted<input id="t-k" type="number" min="0" inputmode="numeric"></label>
+          <label>English words wrongly highlighted<input id="t-f" type="number" min="0" inputmode="numeric"></label>
+        </div>
+        <label for="t-method">How the highlights were made</label>
+        <select id="t-method">
+          <option value="mark">Mark Twi word button only</option>
+          <option value="tap">Tapping words only</option>
+          <option value="both">Both</option>
+        </select>
+        <div class="actions">
+          <button class="btn primary" data-action="test-add">Add result</button>
+          <button class="btn" data-action="test-export">Export test log</button>
+          <button class="btn quiet" data-action="test-clear">Clear test log</button>
+        </div>
+        <div id="flagtests"></div>
+      </section>
+    </div>
+
+    <div class="panel" id="tab-about" role="tabpanel" hidden>
+      <section class="step prose">
+        <h2>About this prototype</h2>
+        <h3>What it does</h3>
+        <ul>
+          <li>Turns the clinician's dictation and the patient's own words into a written record, using a speech model that runs on this phone.</li>
+          <li>Lets the clinician highlight Twi words the patient used, replay just that moment, and write the meaning. Confirmed translations build a local glossary.</li>
+        </ul>
+        <h3>What it does not do</h3>
+        <ul>
+          <li>It does not diagnose or suggest a diagnosis.</li>
+          <li>It does not translate Twi automatically. A clinician translates every highlighted word.</li>
+          <li>It does not send anything to the patient's phone.</li>
+          <li>It does not score its own confidence word by word. Highlights come from the clinician's marks and taps.</li>
+          <li>It does not sync to DHIS2. Records can be exported as a file only.</li>
+        </ul>
+        <h3>Where data sits</h3>
+        <ul>
+          <li>Records are encrypted on this phone (AES-GCM, key derived from the clinician's PIN with PBKDF2, 200,000 rounds) and can only be opened with that PIN.</li>
+          <li>Patient recordings are held in memory only and are deleted when the record is saved or discarded. They are never written to storage.</li>
+          <li>The app locks after 3 minutes without use. Five wrong PINs trigger a 30 second wait. Switching clinician discards any unsaved consultation.</li>
+          <li>The glossary and the test log are not encrypted. They contain no patient details.</li>
+          <li>Exported files are not encrypted.</li>
+          <li>A 4 digit PIN has 10,000 possible combinations and could be guessed by someone who copies this phone's storage. A 6 digit PIN has 1,000,000. Use 6 to 8 digits.</li>
+        </ul>
+        <h3>Model and data</h3>
+        <ul>
+          <li>Speech model: Xenova/whisper-tiny.en, a browser version of OpenAI Whisper tiny (English only). Check the model card for its licence.</li>
+          <li>Measured download size: <span id="about-model"></span></li>
+          <li>It was not trained on Twi and is expected to make more mistakes on African-accented English than on American or British English.</li>
+        </ul>
+        <h3>Offline status</h3>
+        <p id="about-offline"></p>
+      </section>
+    </div>
+  </main>
+</div>
+
+<datalist id="gloss-twi"></datalist>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<script type="module">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+
+/* ---------- constants ---------- */
+const MODEL_ID = 'Xenova/whisper-tiny.en';
+const SR = 16000;
+const LOCK_AFTER_MS = 3 * 60 * 1000;
+const MIN_VOICED_S = 0.4;
+const MAX_CLIP_MS = 45000;
+// Short outputs Whisper is known to produce on silence or noise (see Koenecke et al., FAccT 2024).
+const SUSPECT = ['thank you', 'thank you.', 'thanks for watching', 'thanks for watching!', 'you', 'you.', 'bye', 'bye.'];
+
+const FIELDS = [
+  { id: 'complaint', label: 'Presenting complaint', req: true },
+  { id: 'account', label: "Patient's account", hint: 'Filled from patient recordings, or typed.' },
+  { id: 'findings', label: 'Examination findings' },
+  { id: 'plan', label: 'Plan' },
+  { id: 'medicines', label: 'Medicines and doses' },
+  { id: 'followup', label: 'Follow-up' },
+];
+
+
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const mb = b => (b / 1048576).toFixed(1) + ' MB';
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 5000);
+}
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { toast('Could not save on this phone: storage is full or blocked by the browser.'); } },
+};
+function download(name, text, type = 'application/json') {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name;
+  document.body.append(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+/* ---------- IndexedDB ---------- */
+const dbp = new Promise((res, rej) => {
+  const r = indexedDB.open('goldnexus-carenote', 1);
+  r.onupgradeneeded = () => { const db = r.result; db.createObjectStore('records', { keyPath: 'id' }); db.createObjectStore('audio', { keyPath: 'key' }); };
+  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+});
+async function store(name, mode, fn) {
+  const db = await dbp;
+  return new Promise((res, rej) => {
+    const t = db.transaction(name, mode); const req = fn(t.objectStore(name));
+    t.oncomplete = () => res(req ? req.result : undefined); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+  });
+}
+const idbPut = (n, v) => store(n, 'readwrite', s => s.put(v));
+const idbAll = n => store(n, 'readonly', s => s.getAll());
+
+/* ---------- crypto ---------- */
+const enc = new TextEncoder(), dec = new TextDecoder();
+function toB64(u8) { let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); }
+function fromB64(s) { const b = atob(s); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+async function deriveKey(pin, salt) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function encryptJSON(key, obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(obj)));
+  return { iv: toB64(iv), ct: toB64(new Uint8Array(ct)) };
+}
+async function decryptJSON(key, box) {
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(box.iv) }, key, fromB64(box.ct));
+  return JSON.parse(dec.decode(pt));
+}
+
+/* ---------- state ---------- */
+const S = { asr: null, modelState: 'starting', profile: null, key: null, consult: null, busy: null, fails: 0, waitUntil: 0, records: [] };
+const R = { rec: null, stream: null, chunks: [], t0: 0, markers: [], target: null, auto: null };
+
+/* ---------- lock and profiles ---------- */
+function setLocked(on) {
+  document.body.classList.toggle('locked', on);
+  $('#app').inert = on; $('#lock').hidden = !on;
+}
+function renderLock(mode) {
+  const ps = LS.get('os.profiles', []); const box = $('#lock-body');
+  if (!ps.length || mode === 'create') {
+    box.innerHTML = `<h2>${ps.length ? 'Add a clinician' : 'Set up this phone'}</h2>
+      <p>Each clinician has their own PIN. Records are encrypted with it, and only that clinician can open them.</p>
+      <label for="lk-name">Your name</label><input id="lk-name" autocomplete="name">
+      <label for="lk-pin">PIN, 4 to 8 digits <span class="req">(6 or more recommended)</span></label>
+      <input id="lk-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="new-password">
+      <label for="lk-pin2">Repeat PIN</label>
+      <input id="lk-pin2" type="password" inputmode="numeric" maxlength="8" autocomplete="new-password">
+      <p class="warnline">If this PIN is forgotten, this clinician's records cannot be opened. There is no reset.</p>
+      <p class="err" id="lk-err" role="alert"></p>
+      <div class="actions"><button class="btn primary big" data-action="lock-create">Create and unlock</button>
+      ${ps.length ? '<button class="btn quiet" data-action="lock-back">Back to unlock</button>' : ''}</div>`;
+  } else {
+    box.innerHTML = `<h2>Unlock</h2>
+      <fieldset><legend>Clinician</legend>${ps.map((p, i) => `<label class="check"><input type="radio" name="lk-who" value="${p.id}" ${(S.profile ? S.profile.id === p.id : i === 0) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('')}</fieldset>
+      <label for="lk-pin">PIN</label>
+      <input id="lk-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="current-password">
+      <p class="err" id="lk-err" role="alert"></p>
+      <div class="actions"><button class="btn primary big" data-action="lock-unlock">Unlock</button>
+      <button class="btn quiet" data-action="lock-add">Add a clinician</button></div>`;
+  }
+  setTimeout(() => { const i = $('#lk-name') || $('#lk-pin'); if (i) i.focus(); }, 50);
+}
+async function lockCreate() {
+  const name = $('#lk-name').value.trim(), pin = $('#lk-pin').value, pin2 = $('#lk-pin2').value, err = $('#lk-err');
+  if (!name) return (err.textContent = 'Enter your name.');
+  if (!/^\d{4,8}$/.test(pin)) return (err.textContent = 'The PIN must be 4 to 8 digits.');
+  if (pin !== pin2) return (err.textContent = 'The two PINs do not match.');
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await deriveKey(pin, salt);
+  const p = { id: uid(), name, salt: toB64(salt), verifier: await encryptJSON(key, { ok: true }) };
+  const ps = LS.get('os.profiles', []); ps.push(p); LS.set('os.profiles', ps);
+  enterApp(p, key);
+}
+async function lockUnlock() {
+  const err = $('#lk-err');
+  if (Date.now() < S.waitUntil) return (err.textContent = `Too many wrong PINs. Try again in ${Math.ceil((S.waitUntil - Date.now()) / 1000)} seconds.`);
+  const pid = ($('input[name=lk-who]:checked') || {}).value;
+  const p = LS.get('os.profiles', []).find(x => x.id === pid);
+  if (!p) return (err.textContent = 'Choose a clinician.');
+  const key = await deriveKey($('#lk-pin').value, fromB64(p.salt));
+  try { await decryptJSON(key, p.verifier); }
+  catch {
+    S.fails++;
+    if (S.fails >= 5) { S.fails = 0; S.waitUntil = Date.now() + 30000; err.textContent = 'Wrong PIN five times. Wait 30 seconds before trying again.'; }
+    else err.textContent = `Wrong PIN. ${5 - S.fails} tries left before a 30 second wait.`;
+    $('#lk-pin').value = ''; return;
+  }
+  S.fails = 0; enterApp(p, key);
+}
+function enterApp(p, key) {
+  if (S.profile && S.profile.id !== p.id && S.consult && consultHasContent()) {
+    discardConsult(); toast("The previous clinician's unsaved consultation was discarded.");
+  }
+  S.profile = p; S.key = key; $('#who').textContent = p.name;
+  setLocked(false); armIdle(); refreshRecords();
+}
+async function lockNow() {
+  if (R.rec) { await recStop(); toast('Recording stopped because the app locked.'); }
+  S.key = null; setLocked(true); renderLock(); renderAll();
+}
+let idleT;
+function armIdle() { clearTimeout(idleT); idleT = setTimeout(() => { if (S.key) lockNow(); }, LOCK_AFTER_MS); }
+['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { if (S.key) armIdle(); }, { passive: true }));
+
+/* ---------- model ---------- */
+function setModelState(st, detail) {
+  S.modelState = st; const chip = $('#chip-model');
+  chip.className = 'chip' + (st === 'ready' ? ' good' : st === 'error' ? ' bad' : '');
+  chip.textContent = st === 'ready' ? 'Speech model: ready' : st === 'error' ? 'Speech model: failed' : 'Speech model: loading';
+  $('#model-progress').hidden = st !== 'loading';
+  if (st === 'error') {
+    $('#model-progress').hidden = false;
+    $('#model-label').innerHTML = `The speech model did not load (${esc(detail || 'unknown error')}). Connect to the internet once so it can download, then <button class="btn small" data-action="model-retry">Try again</button>`;
+  }
+  renderAll();
+}
+async function loadModel() {
+  const files = {}; setModelState('loading'); $('#model-label').textContent = 'Preparing the speech model.';
+  try {
+    S.asr = await pipeline('automatic-speech-recognition', MODEL_ID, {
+      dtype: 'q8', // 8-bit files: about 39 MB in total instead of about 145 MB
+      progress_callback: p => {
+        if (!p.file || !['progress', 'done', 'download'].includes(p.status)) return;
+        const f = files[p.file] || (files[p.file] = { loaded: 0, total: 0 });
+        if (p.total) f.total = p.total; if (p.loaded) f.loaded = p.loaded; if (p.status === 'done' && f.total) f.loaded = f.total;
+        const tot = Object.values(files).reduce((a, x) => a + x.total, 0), got = Object.values(files).reduce((a, x) => a + x.loaded, 0);
+        if (tot) { $('#model-bar').value = got / tot; $('#model-label').textContent = `Downloading the speech model: ${mb(got)} of ${mb(tot)}. This happens once.`; }
+      },
+    });
+    const tot = Object.values(files).reduce((a, x) => a + x.total, 0);
+    if (tot > 0) LS.set('os.modelBytes', { bytes: tot, files: Object.fromEntries(Object.entries(files).map(([k, v]) => [k, v.total])), at: new Date().toISOString() });
+    setModelState('ready');
+  } catch (e) { console.error(e); S.asr = null; setModelState('error', e.message); }
+}
+
+/* ---------- audio ---------- */
+async function recStart(target) {
+  if (R.rec) { toast('Finish the current recording first.'); return false; }
+  try { R.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } }); }
+  catch { toast('The microphone is blocked. Allow microphone access for this site in the browser settings, then try again.'); return false; }
+  R.chunks = []; R.markers = []; R.target = target;
+  R.rec = new MediaRecorder(R.stream);
+  R.rec.ondataavailable = e => { if (e.data.size) R.chunks.push(e.data); };
+  R.rec.start(); R.t0 = performance.now();
+  return true;
+}
+function recMark() { if (R.rec) R.markers.push((performance.now() - R.t0) / 1000); }
+function recStop() {
+  clearTimeout(R.auto);
+  return new Promise(res => {
+    const r = R.rec; if (!r) return res(null);
+    r.onstop = () => {
+      R.stream.getTracks().forEach(t => t.stop());
+      const out = { blob: new Blob(R.chunks, { type: r.mimeType || 'audio/webm' }), markers: R.markers.slice() };
+      R.rec = null; R.stream = null; R.target = null; R.chunks = []; res(out);
+    };
+    r.stop();
+  });
+}
+async function toPCM(blob) {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AC({ sampleRate: SR });
+  try {
+    const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+    if (buf.numberOfChannels === 1) return buf.getChannelData(0).slice();
+    const a = buf.getChannelData(0), b = buf.getChannelData(1), m = new Float32Array(a.length);
+    for (let i = 0; i < a.length; i++) m[i] = (a[i] + b[i]) / 2;
+    return m;
+  } finally { ctx.close(); }
+}
+// Remove silence at the start and end. Whisper is more likely to invent text on silence.
+function trimSilence(x) {
+  const fl = Math.round(SR * 0.02), n = Math.floor(x.length / fl); if (!n) return { audio: null, voiced: 0, start: 0 };
+  const rms = new Float32Array(n); let peak = 0;
+  for (let i = 0; i < n; i++) { let s = 0; for (let j = i * fl; j < (i + 1) * fl; j++) s += x[j] * x[j]; rms[i] = Math.sqrt(s / fl); if (rms[i] > peak) peak = rms[i]; }
+  const th = Math.max(0.01, peak * 0.12);
+  let a = 0; while (a < n && rms[a] < th) a++;
+  let b = n - 1; while (b >= 0 && rms[b] < th) b--;
+  if (a > b) return { audio: null, voiced: 0, start: 0 };
+  let voiced = 0; for (let i = a; i <= b; i++) if (rms[i] >= th) voiced++;
+  const pad = Math.round(0.15 * SR), s = Math.max(0, a * fl - pad), e = Math.min(x.length, (b + 1) * fl + pad);
+  return { audio: x.slice(s, e), voiced: voiced * 0.02, start: s / SR };
+}
+function wav(x) {
+  const b = new ArrayBuffer(44 + x.length * 2), v = new DataView(b);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + x.length * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, SR, true);
+  v.setUint32(28, SR * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, x.length * 2, true);
+  for (let i = 0; i < x.length; i++) { const s = Math.max(-1, Math.min(1, x[i])); v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true); }
+  return new Blob([b], { type: 'audio/wav' });
+}
+// Plays part of a clip through a normal audio element (works with the iPhone silent switch, unlike Web Audio).
+let currentAudio = null;
+async function playPCM(x, from = 0, to = null) {
+  if (!x) return toast('This recording has been deleted.');
+  const total = x.length / SR;
+  let a = Number.isFinite(from) ? Math.max(0, from) : 0;
+  let b = Number.isFinite(to) ? Math.min(total, to) : total;
+  if (b - a < 0.3) { a = Math.max(0, a - 0.5); b = Math.min(total, a + 1.5); }
+  const seg = x.slice(Math.floor(a * SR), Math.floor(b * SR));
+  if (!seg.length) return toast('There is no audio at that point in the clip.');
+  try {
+    if (currentAudio) { currentAudio.pause(); URL.revokeObjectURL(currentAudio.src); }
+    currentAudio = new Audio(URL.createObjectURL(wav(seg)));
+    await currentAudio.play();
+  } catch (e) {
+    console.error(e);
+    toast(`The phone did not play the audio (${e.message}). Check the volume and try again.`);
+  }
+}
+
+/* ---------- speech recognition ---------- */
+async function runASR(pcm) {
+  if (!S.asr) throw new Error('the speech model is not loaded');
+  const opts = pcm.length / SR > 30 ? { chunk_length_s: 30, stride_length_s: 5 } : {};
+  let out, words = true;
+  try { out = await S.asr(pcm, { ...opts, return_timestamps: 'word' }); }
+  catch (e) { console.warn('Word timings unavailable, using plain transcription.', e); words = false; out = await S.asr(pcm, opts); }
+  const text = (out.text || '').trim();
+  const chunks = words && Array.isArray(out.chunks)
+    ? out.chunks.map(c => ({ text: (c.text || '').trim(), start: c.timestamp?.[0] ?? null, end: c.timestamp?.[1] ?? null })).filter(c => c.text)
+    : null;
+  return { text, chunks };
+}
+async function processCapture(cap) {
+  if (!cap || !cap.blob.size) return { rejected: 'Nothing was recorded. Try again.' };
+  const t = trimSilence(await toPCM(cap.blob));
+  if (!t.audio || t.voiced < MIN_VOICED_S) return { rejected: 'No clear speech was detected, so nothing was transcribed. Move closer to the phone and record again.' };
+  const r = await runASR(t.audio);
+  const norm = r.text.toLowerCase().replace(/\s+/g, ' ').trim();
+  return { pcm: t.audio, duration: t.audio.length / SR, text: r.text, chunks: r.chunks, markers: cap.markers.map(m => Math.max(0, m - t.start)), suspect: !norm || SUSPECT.includes(norm) };
+}
+
+/* ---------- consultation ---------- */
+function newConsult() {
+  S.consult = {
+    id: uid(), startedAt: Date.now(), firstInputAt: null, patientRef: '', mode: 'dictation', consent: false, clips: [],
+    fields: Object.fromEntries(FIELDS.map(f => [f.id, { text: '', confirmed: false, warn: false }])),
+  };
+  $('#c-ref').value = ''; $$('input[name=mode]').forEach(r => { r.checked = r.value === 'dictation'; }); $('#c-consent').checked = false;
+  renderAll();
+}
+function consultHasContent() {
+  const c = S.consult; return !!(c.patientRef || c.clips.length || Object.values(c.fields).some(f => f.text.trim()));
+}
+function wipeAudio() { for (const cl of S.consult?.clips || []) { if (cl.pcm) { cl.pcm.fill(0); cl.pcm = null; } } }
+function discardConsult() { wipeAudio(); newConsult(); }
+function touch() { if (!S.consult.firstInputAt) S.consult.firstInputAt = Date.now(); }
+
+function buildClip(r) {
+  const words = r.chunks
+    ? r.chunks.map(w => ({ text: w.text, start: w.start, end: w.end, flag: null, twi: '', en: '' }))
+    : r.text.split(/\s+/).filter(Boolean).map(t => ({ text: t, start: null, end: null, flag: null, twi: '', en: '' }));
+  const markers = r.markers.map(t => ({ t, attached: false, dismissed: false, twi: '', en: '' }));
+  if (r.chunks) {
+    // Each mark highlights the one word that ends closest to it, within 2 s before or 0.5 s after the press.
+    for (const m of markers) {
+      let best = null, bestD = Infinity;
+      for (const w of words) {
+        if (w.start == null || w.end == null) continue;
+        if (w.end >= m.t - 2.0 && w.start <= m.t + 0.5) { const d = Math.abs(m.t - w.end); if (d < bestD) { bestD = d; best = w; } }
+      }
+      if (best) { best.flag = best.flag || 'marker'; m.attached = true; }
+    }
+  }
+  return { id: uid(), pcm: r.pcm, duration: r.duration, text: r.text, words, markers, suspect: r.suspect, ack: false, inserted: false, discarded: false, noWords: !r.chunks };
+}
+async function finishPatient() {
+  const cap = await recStop(); S.busy = 'patient'; renderAll();
+  try {
+    const r = await processCapture(cap);
+    if (r.rejected) toast(r.rejected); else if (S.consult) S.consult.clips.push(buildClip(r));
+  } catch (err) { console.error(err); toast(`Transcription failed on this phone (${err.message}). The recording was not kept.`); }
+  finally { S.busy = null; renderAll(); }
+}
+async function finishField(fid) {
+  const cap = await recStop(); S.busy = 'field:' + fid; renderAll();
+  try {
+    const r = await processCapture(cap);
+    if (r.rejected) toast(r.rejected);
+    else {
+      const st = S.consult.fields[fid];
+      st.text = (st.text.trim() ? st.text.trimEnd() + ' ' : '') + r.text; st.confirmed = false; if (r.suspect) st.warn = true;
+      r.pcm.fill(0);
+    }
+  } catch (err) { console.error(err); toast(`Transcription failed on this phone (${err.message}).`); }
+  finally { S.busy = null; renderAll(); }
+}
+function clipBlockers(cl) {
+  const missing = cl.words.filter(w => w.flag && !w.en.trim()).length + cl.markers.filter(m => !m.attached && !m.dismissed && !m.en.trim()).length;
+  if (cl.suspect && !cl.ack) return 'Replay the clip and tick the check box before adding it.';
+  if (missing) return `Write the English meaning for ${missing} Twi item${missing > 1 ? 's' : ''}, or remove the highlight, first.`;
+  return null;
+}
+function insertClip(cl) {
+  const block = clipBlockers(cl); if (block) return toast(block);
+  let s = cl.words.map(w => w.flag ? `${w.en.trim()} [Twi: ${w.twi.trim() || 'not written'}]` : w.text).join(' ').replace(/\s+([.,!?;:])/g, '$1');
+  const extra = cl.markers.filter(m => !m.attached && !m.dismissed).map(m => `${m.en.trim()} [Twi: ${m.twi.trim() || 'not written'}]`);
+  if (extra.length) s += ` (Also said in Twi: ${extra.join('; ')}.)`;
+  const st = S.consult.fields.account;
+  st.text = (st.text.trim() ? st.text.trimEnd() + '\n' : '') + s; st.confirmed = false;
+  for (const it of [...cl.words.filter(w => w.flag), ...cl.markers.filter(m => !m.attached && !m.dismissed)]) if (it.twi.trim() && it.en.trim()) addGloss(it.twi, it.en);
+  cl.inserted = true; toast("Added to the patient's account. Check and confirm it in step 3.");
+  renderAll();
+}
+function consultBlockers() {
+  const c = S.consult, b = [];
+  if (!c.patientRef.trim()) b.push('Enter a patient reference.');
+  if (!c.fields.complaint.text.trim()) b.push('Enter the presenting complaint.');
+  const unconf = FIELDS.filter(f => c.fields[f.id].text.trim() && !c.fields[f.id].confirmed).map(f => f.label);
+  if (unconf.length) b.push('Confirm: ' + unconf.join(', ') + '.');
+  const pending = c.clips.filter(cl => !cl.inserted && !cl.discarded).length;
+  if (pending) b.push(`${pending} patient clip${pending > 1 ? 's are' : ' is'} not added to the record. Add or discard ${pending > 1 ? 'them' : 'it'}.`);
+  if (R.rec || S.busy) b.push('Finish the current recording first.');
+  return b;
+}
+async function saveConsult() {
+  const b = consultBlockers(); if (b.length) return toast(b[0]);
+  if (!S.key) return toast('Unlock the app first.');
+  const c = S.consult;
+  const twiTerms = [];
+  for (const cl of c.clips.filter(x => x.inserted)) {
+    for (const it of [...cl.words.filter(w => w.flag), ...cl.markers.filter(m => !m.attached && !m.dismissed)]) twiTerms.push({ twi: it.twi.trim(), en: it.en.trim(), source: it.flag || 'mark' });
+  }
+  const rec = {
+    id: c.id, savedAt: new Date().toISOString(), clinician: S.profile.name, patientRef: c.patientRef.trim(),
+    mode: c.mode, consentForRecording: c.consent,
+    fields: Object.fromEntries(Object.entries(c.fields).filter(([, v]) => v.text.trim()).map(([k, v]) => [k, v.text.trim()])),
+    twiTerms,
+    tool: { speechModel: MODEL_ID, patientClips: c.clips.filter(x => x.inserted).length },
+  };
+  try {
+    await idbPut('records', { id: rec.id, owner: S.profile.id, savedAt: rec.savedAt, box: await encryptJSON(S.key, rec) });
+  } catch (e) { console.error(e); return toast('The record could not be saved on this phone. Nothing was lost: try Save again.'); }
+  const secs = Math.round((Date.now() - (c.firstInputAt || c.startedAt)) / 1000);
+  const log = LS.get('os.timings', []); log.push({ at: rec.savedAt, mode: c.mode, seconds: secs, chars: Object.values(rec.fields).join('').length }); LS.set('os.timings', log);
+  wipeAudio(); newConsult(); refreshRecords();
+  toast(`Record saved and encrypted. Recordings deleted. Time taken: ${secs} s.`);
+}
+
+/* ---------- consultation rendering ---------- */
+function renderAll() {
+  if (!S.consult) return;
+  renderPatient(); renderFields(); renderSave();
+}
+function renderPatient() {
+  const c = S.consult, box = $('#patient'), recHere = R.target === 'patient';
+  let why = '';
+  if (c.mode === 'typing') why = 'Typing-only mode: patient recording is off for this timing test.';
+  else if (!c.consent) why = 'Tick the consent box in step 1 before recording the patient.';
+  else if (!S.asr) why = 'The speech model is still loading. Recording starts working when it is ready.';
+  const disabled = !!why || (R.rec && !recHere) || !!S.busy;
+  box.innerHTML = `
+    <p class="hint">${why ? esc(why) : 'Record short turns. Press <strong>Mark Twi word</strong> the moment the patient uses a Twi word.'}</p>
+    <div class="recrow">
+      <button class="btn big ${recHere ? 'recording' : 'primary'}" data-action="rec-patient" aria-pressed="${recHere}" ${disabled && !recHere ? 'disabled' : ''}>${recHere ? 'Stop and transcribe' : 'Record patient'}</button>
+      ${recHere ? `<button class="btn twi big" data-action="mark-twi">Mark Twi word<span class="count" id="mark-count">${R.markers.length}</span></button>` : ''}
+    </div>
+    ${recHere ? '<p class="live" aria-live="polite">Recording. Clips stop by themselves after 45 seconds.</p>' : ''}
+    ${S.busy === 'patient' ? '<p class="live" aria-live="polite">Transcribing on this phone. This can take a few seconds.</p>' : ''}
+    ${c.clips.map((cl, i) => clipHTML(cl, i)).join('')}`;
+}
+function clipHTML(cl, i) {
+  if (cl.discarded) return '';
+  const ro = cl.inserted;
+  const flagged = cl.words.map((w, wi) => ({ w, wi })).filter(x => x.w.flag);
+  const loose = cl.markers.map((m, mi) => ({ m, mi })).filter(x => !x.m.attached && !x.m.dismissed);
+  return `<article class="clip" aria-label="Patient clip ${i + 1}">
+    <div class="cliphead"><h3>Patient clip ${i + 1}</h3><span class="meta">${cl.duration.toFixed(1)} s${cl.noWords ? ', no word timings' : ''}</span>
+      <span class="tag ${ro ? 'ok' : ''}">${ro ? 'Added to record' : 'Not yet added'}</span></div>
+    ${cl.suspect ? `<div class="warn" role="alert"><p>This text may have been invented by the speech model, which happens most on silence and long pauses. Replay the clip and check it.</p>
+      <label class="check"><input type="checkbox" data-input="clip-ack" data-clip="${i}" ${cl.ack ? 'checked' : ''} ${ro ? 'disabled' : ''}> I replayed it and the text matches what was said</label></div>` : ''}
+    <p class="transcript">${cl.words.length ? cl.words.map((w, wi) => `<button type="button" class="w ${w.flag ? 'flag' : ''}" data-action="word" data-clip="${i}" data-w="${wi}" aria-pressed="${!!w.flag}" ${ro ? 'disabled' : ''}>${esc(w.text)}</button>`).join(' ') : '<em>No words recognised.</em>'}</p>
+    ${ro ? '' : '<p class="hint small">Tap any word to mark it as Twi. Marked words need an English meaning before the clip can be added.</p>'}
+    ${flagged.length || loose.length ? `<div class="flags">
+      ${flagged.map(({ w, wi }) => flagRow(i, 'w', wi, `Heard as \u201C${esc(w.text)}\u201D`, w, w.flag === 'marker' ? 'Suggested from your Twi mark' : 'Marked by you', ro)).join('')}
+      ${loose.map(({ m, mi }) => flagRow(i, 'm', mi, `Twi mark at ${m.t.toFixed(1)} s`, m, 'No word lined up with this mark', ro)).join('')}
+    </div>` : ''}
+    <div class="actions">
+      <button class="btn" data-action="clip-replay" data-clip="${i}" ${cl.pcm ? '' : 'disabled'}>Replay clip</button>
+      ${ro ? '' : `<button class="btn primary" data-action="clip-insert" data-clip="${i}">Add to patient's account</button>
+      <button class="btn quiet" data-action="clip-discard" data-clip="${i}">Discard clip</button>`}
+    </div></article>`;
+}
+function flagRow(ci, kind, idx, title, item, src, ro) {
+  const d = ro ? 'disabled' : '';
+  return `<div class="flagrow">
+    <div class="flaghead"><strong>${title}</strong><span class="meta">${src}</span>
+      <button class="btn small" data-action="${kind === 'w' ? 'word-replay' : 'mark-replay'}" data-clip="${ci}" data-idx="${idx}">Replay</button>
+      ${kind === 'm' && !ro ? `<button class="btn small quiet" data-action="mark-dismiss" data-clip="${ci}" data-idx="${idx}">Dismiss mark</button>` : ''}</div>
+    <div class="pair">
+      <label>Twi word<input list="gloss-twi" data-input="flag" data-kind="${kind}" data-key="twi" data-clip="${ci}" data-idx="${idx}" value="${esc(item.twi)}" ${d} autocomplete="off" spellcheck="false"></label>
+      <label>English meaning<input data-input="flag" data-kind="${kind}" data-key="en" data-clip="${ci}" data-idx="${idx}" value="${esc(item.en)}" ${d} autocomplete="off"></label>
+    </div></div>`;
+}
+function checkTokens(t) {
+  const re = /\b\d+(?:\.\d+)?\s?(?:mg|mcg|g|ml|tabs?|tablets?|capsules?|caps|times?|days?|weeks?|hours?|hrs?|units?|%)?/gi;
+  return [...new Set((t.match(re) || []).map(s => s.trim()))].slice(0, 12);
+}
+function fieldMeta(fid) {
+  const st = S.consult.fields[fid], nums = checkTokens(st.text);
+  return `${S.busy === 'field:' + fid ? '<p class="live">Transcribing on this phone.</p>' : ''}
+    ${st.warn ? '<p class="warnline">Check this text: the speech model may have invented part of it.</p>' : ''}
+    ${nums.length ? `<p class="checkline">Check numbers and doses against what was said: ${nums.map(n => `<mark>${esc(n)}</mark>`).join(' ')}</p>` : ''}
+    <button class="btn small ${st.confirmed ? 'ok' : ''}" data-action="field-confirm" data-f="${fid}" aria-pressed="${st.confirmed}" ${st.text.trim() ? '' : 'disabled'}>${st.confirmed ? 'Confirmed' : 'Confirm this text'}</button>`;
+}
+function renderFields() {
+  const c = S.consult;
+  $('#fields').innerHTML = FIELDS.map(f => {
+    const st = c.fields[f.id], recHere = R.target === 'field:' + f.id;
+    const canDictate = c.mode === 'dictation';
+    const dis = !S.asr || (R.rec && !recHere) || (!!S.busy && !recHere);
+    return `<div class="field">
+      <div class="fieldhead"><label for="ta-${f.id}">${f.label}${f.req ? ' <span class="req">(required)</span>' : ''}</label>
+      ${canDictate ? `<button class="btn small ${recHere ? 'recording' : ''}" data-action="field-dictate" data-f="${f.id}" aria-pressed="${recHere}" ${dis ? 'disabled' : ''}>${recHere ? 'Stop dictating' : 'Dictate'}</button>` : ''}</div>
+      ${f.hint ? `<p class="hint small">${f.hint}</p>` : ''}
+      <textarea id="ta-${f.id}" data-input="field" data-f="${f.id}" rows="3" class="${st.confirmed ? '' : 'unconfirmed'}">${esc(st.text)}</textarea>
+      <div id="meta-${f.id}">${fieldMeta(f.id)}</div></div>`;
+  }).join('');
+}
+function renderSave() {
+  const b = consultBlockers();
+  $('#save').innerHTML = `${b.length ? `<ul class="blockers">${b.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="hint">Ready to save. The record is encrypted on this phone and every recording is deleted.</p>'}
+    <div class="actions"><button class="btn primary big" data-action="consult-save" ${b.length ? 'aria-disabled="true"' : ''}>Save record</button>
+    <button class="btn quiet" data-action="consult-discard">Discard consultation</button></div>`;
+}
+
+/* ---------- records ---------- */
+async function refreshRecords() {
+  if (!S.key) return;
+  const all = (await idbAll('records')).filter(r => r.owner === S.profile.id).sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+  const out = []; for (const r of all) { try { out.push(await decryptJSON(S.key, r.box)); } catch { /* not readable with this key */ } }
+  S.records = out; renderRecords();
+}
+function recordDetail(r) {
+  return `<dl>${FIELDS.filter(f => r.fields[f.id]).map(f => `<dt>${f.label}</dt><dd>${esc(r.fields[f.id])}</dd>`).join('')}
+    ${r.twiTerms?.length ? `<dt>Twi words in the patient's account</dt><dd>${r.twiTerms.map(t => esc(`${t.twi || '(not written)'} = ${t.en}`)).join('\n')}</dd>` : ''}
+    <dt>Recorded by</dt><dd>${esc(r.clinician)}. Mode: ${r.mode === 'typing' ? 'typing only' : 'dictation'}. Patient recording consent: ${r.consentForRecording ? 'yes' : 'no'}.</dd></dl>`;
+}
+function renderRecords() {
+  const box = $('#records-list'), rs = S.records || [];
+  box.innerHTML = rs.length ? rs.map(r => `<details class="rec"><summary><strong>${esc(r.patientRef)}</strong> <span class="meta">${new Date(r.savedAt).toLocaleString()}</span><br>${esc((r.fields.complaint || '').slice(0, 90))}</summary>${recordDetail(r)}</details>`).join('')
+    : '<p class="empty">No saved records for this clinician yet. Records appear here after you save a consultation.</p>';
+}
+
+/* ---------- glossary ---------- */
+function getGloss() { return LS.get('os.glossary', []); }
+function addGloss(twi, en) {
+  const g = getGloss(), k = twi.trim().toLowerCase(), e = g.find(x => x.twi.toLowerCase() === k), now = new Date().toISOString();
+  if (e) { e.en = en.trim(); e.uses = (e.uses || 0) + 1; e.updatedAt = now; } else g.push({ twi: twi.trim(), en: en.trim(), uses: 1, updatedAt: now });
+  LS.set('os.glossary', g); renderGloss();
+}
+function renderGloss() {
+  const g = getGloss().sort((a, b) => a.twi.localeCompare(b.twi));
+  $('#gloss-twi').innerHTML = g.map(x => `<option value="${esc(x.twi)}"></option>`).join('');
+  $('#gloss').innerHTML = g.length ? `<div class="tablewrap"><table><thead><tr><th scope="col">Twi</th><th scope="col">English</th><th scope="col">Times used</th><th scope="col"><span class="req">Remove</span></th></tr></thead>
+    <tbody>${g.map((x, i) => `<tr><td>${esc(x.twi)}</td><td>${esc(x.en)}</td><td>${x.uses || 1}</td><td><button class="btn small quiet" data-action="gloss-del" data-twi="${esc(x.twi)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
+    : '<p class="empty">No words yet. Translations you confirm when adding a patient clip are saved here, or add one below.</p>';
+}
+
+/* ---------- tests ---------- */
+function renderTests() {
+  const t = LS.get('os.timings', []), modes = { dictation: 'Dictation', typing: 'Typing only' }, means = {};
+  let html = Object.entries(modes).map(([m, l]) => {
+    const xs = t.filter(x => x.mode === m).map(x => x.seconds);
+    if (!xs.length) return `<p><strong>${l}:</strong> no records yet.</p>`;
+    const tot = xs.reduce((a, b) => a + b, 0), mean = tot / xs.length; means[m] = mean;
+    const chars = t.filter(x => x.mode === m).reduce((a, x) => a + x.chars, 0) / xs.length;
+    return `<p><strong>${l}:</strong> mean ${mean.toFixed(1)} s per record from ${xs.length} record${xs.length > 1 ? 's' : ''}. Calculation: (${xs.join(' + ')}) \u00F7 ${xs.length} = ${mean.toFixed(1)} s. Mean record length: ${Math.round(chars)} characters.</p>`;
+  }).join('');
+  if (means.dictation != null && means.typing != null) {
+    const d = means.typing - means.dictation, pct = (d / means.typing) * 100;
+    html += `<p><strong>Difference:</strong> ${means.typing.toFixed(1)} \u2212 ${means.dictation.toFixed(1)} = ${d.toFixed(1)} s, which is ${pct.toFixed(1)}% of the typing time. ${d >= 0 ? 'Dictation was faster in this test.' : 'Typing was faster in this test.'}</p>`;
+  }
+  html += '<p class="hint small">A small test run by one person. Report it as that, not as a general result.</p>';
+  $('#timings').innerHTML = html;
+  const cl = [...(S.consult?.clips || [])].reverse().find(x => !x.discarded);
+  $('#latest-clip').innerHTML = cl ? `<p class="hint">Latest patient clip: ${cl.words.filter(w => w.flag === 'marker').length} word(s) highlighted from Twi marks, ${cl.words.filter(w => w.flag === 'manual').length} tapped by you, ${cl.markers.filter(m => !m.attached).length} mark(s) with no word lined up.</p>` : '';
+  const ft = LS.get('os.flagtests', []), methods = { mark: 'Mark button', tap: 'Tapping', both: 'Both' };
+  $('#flagtests').innerHTML = ft.length ? `<div class="tablewrap"><table><thead><tr><th scope="col">Method</th><th scope="col">Highlight rate</th><th scope="col">Wrong highlights</th></tr></thead><tbody>
+    ${ft.map(x => `<tr><td>${methods[x.method]}</td><td>${x.k} \u00F7 ${x.n} = ${x.n ? ((x.k / x.n) * 100).toFixed(1) + '%' : 'n/a'}</td><td>${x.f}</td></tr>`).join('')}
+    </tbody></table></div>${(() => { const n = ft.reduce((a, x) => a + x.n, 0), k = ft.reduce((a, x) => a + x.k, 0), f = ft.reduce((a, x) => a + x.f, 0);
+      return `<p><strong>All tests:</strong> ${k} \u00F7 ${n} = ${n ? ((k / n) * 100).toFixed(1) + '%' : 'n/a'} of Twi words highlighted, with ${f} English word${f === 1 ? '' : 's'} wrongly highlighted.</p>`; })()}` : '<p class="empty">No results yet.</p>';
+}
+
+/* ---------- about ---------- */
+function renderAbout() {
+  const m = LS.get('os.modelBytes', null);
+  $('#about-model').textContent = m ? `${mb(m.bytes)} across ${Object.keys(m.files).length} files, measured on ${new Date(m.at).toLocaleDateString()}.` : 'not measured yet. It is recorded the first time the model downloads.';
+  $('#about-offline').textContent = `${navigator.serviceWorker?.controller ? 'Offline cache is active.' : 'Offline cache is not active yet. Reload the page once while online.'} ${S.asr ? 'The speech model is loaded.' : 'The speech model is not loaded.'}`;
+}
+
+/* ---------- tabs and network ---------- */
+function showTab(name) {
+  $$('nav.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  $$('.panel').forEach(p => { p.hidden = p.id !== 'tab-' + name; });
+  if (name === 'records') refreshRecords();
+  if (name === 'glossary') renderGloss();
+  if (name === 'tests') renderTests();
+  if (name === 'about') renderAbout();
+}
+function updateNet() { const on = navigator.onLine, c = $('#chip-net'); c.textContent = on ? 'Online' : 'Offline'; c.className = 'chip' + (on ? '' : ' good'); }
+addEventListener('online', updateNet); addEventListener('offline', updateNet);
+
+/* ---------- events ---------- */
+const clipOf = el => S.consult.clips[+el.dataset.clip];
+document.addEventListener('click', async e => {
+  const tab = e.target.closest('[data-tab]'); if (tab) return showTab(tab.dataset.tab);
+  const b = e.target.closest('[data-action]'); if (!b || b.disabled) return;
+  const a = b.dataset.action;
+  if (!S.key && !a.startsWith('lock-')) return;
+  switch (a) {
+    case 'lock-create': return lockCreate();
+    case 'lock-unlock': return lockUnlock();
+    case 'lock-add': return renderLock('create');
+    case 'lock-back': return renderLock();
+    case 'lock-now': return lockNow();
+    case 'model-retry': return loadModel();
+    case 'rec-patient':
+      if (R.target === 'patient') return finishPatient();
+      touch();
+      if (await recStart('patient')) { R.auto = setTimeout(() => { if (R.target === 'patient') finishPatient(); }, MAX_CLIP_MS); renderAll(); }
+      return;
+    case 'mark-twi': recMark(); { const c = $('#mark-count'); if (c) c.textContent = R.markers.length; } return;
+    case 'word': {
+      const cl = clipOf(b), w = cl.words[+b.dataset.w];
+      if (w.flag) { w.flag = null; w.twi = ''; w.en = ''; } else w.flag = 'manual';
+      renderPatient(); return;
+    }
+    case 'word-replay': {
+      const cl = clipOf(b), w = cl.words[+b.dataset.idx];
+      const timed = Number.isFinite(w.start) && Number.isFinite(w.end) && w.end > w.start;
+      if (!timed) { toast('This word has no timing, so the whole clip will play.'); return playPCM(cl.pcm); }
+      return playPCM(cl.pcm, w.start - 0.4, w.end + 0.6);
+    }
+    case 'mark-replay': { const cl = clipOf(b), m = cl.markers[+b.dataset.idx]; return playPCM(cl.pcm, Math.max(0, m.t - 2.5), m.t + 1); }
+    case 'mark-dismiss': { clipOf(b).markers[+b.dataset.idx].dismissed = true; renderPatient(); return; }
+    case 'clip-replay': return playPCM(clipOf(b).pcm);
+    case 'clip-insert': return insertClip(clipOf(b));
+    case 'clip-discard': {
+      if (!confirm('Discard this patient clip? Its recording and text will be deleted.')) return;
+      const cl = clipOf(b); if (cl.pcm) { cl.pcm.fill(0); cl.pcm = null; } cl.discarded = true; renderAll(); return;
+    }
+    case 'field-dictate': {
+      const fid = b.dataset.f;
+      if (R.target === 'field:' + fid) return finishField(fid);
+      touch();
+      if (await recStart('field:' + fid)) { R.auto = setTimeout(() => { if (R.target === 'field:' + fid) finishField(fid); }, MAX_CLIP_MS); renderAll(); }
+      return;
+    }
+    case 'field-confirm': {
+      const st = S.consult.fields[b.dataset.f]; st.confirmed = !st.confirmed; if (st.confirmed) st.warn = false;
+      renderFields(); renderSave(); return;
+    }
+    case 'consult-save': return saveConsult();
+    case 'consult-discard':
+      if (consultHasContent() && !confirm('Discard this consultation? All recordings and unsaved text will be deleted.')) return;
+      discardConsult(); toast('Consultation discarded. Recordings deleted.'); return;
+    case 'rec-export': {
+      if (!S.records.length) return toast('There are no saved records to export.');
+      download(`carenote-records-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(S.records, null, 2));
+      return toast('Exported. This file is not encrypted, so keep it somewhere safe.');
+    }
+    case 'gloss-add': {
+      const twi = $('#g-twi').value.trim(), en = $('#g-en').value.trim();
+      if (!twi || !en) return toast('Enter both the Twi word and its English meaning.');
+      addGloss(twi, en); $('#g-twi').value = ''; $('#g-en').value = ''; return toast('Added to the glossary.');
+    }
+    case 'gloss-del': {
+      if (!confirm('Remove this word from the glossary?')) return;
+      LS.set('os.glossary', getGloss().filter(x => x.twi !== b.dataset.twi)); renderGloss(); return;
+    }
+    case 'gloss-export': {
+      const g = getGloss(); if (!g.length) return toast('The glossary is empty.');
+      const q = s => `"${String(s).replace(/"/g, '""')}"`;
+      return download('twi-glossary.csv', 'twi,english,times_used,updated\n' + g.map(x => [x.twi, x.en, x.uses || 1, x.updatedAt].map(q).join(',')).join('\n'), 'text/csv');
+    }
+    case 'test-add': {
+      const n = +$('#t-n').value, k = +$('#t-k').value, f = +$('#t-f').value;
+      if (!(n > 0) || k < 0 || f < 0 || k > n) return toast('Enter the Twi words spoken (more than 0) and a highlighted count no larger than that.');
+      const ft = LS.get('os.flagtests', []); ft.push({ at: new Date().toISOString(), n, k, f, method: $('#t-method').value }); LS.set('os.flagtests', ft);
+      ['#t-n', '#t-k', '#t-f'].forEach(s => { $(s).value = ''; }); renderTests(); return;
+    }
+    case 'test-export':
+      return download('carenote-test-log.json', JSON.stringify({ timings: LS.get('os.timings', []), highlightTests: LS.get('os.flagtests', []), model: MODEL_ID, modelDownload: LS.get('os.modelBytes', null) }, null, 2));
+    case 'test-clear':
+      if (!confirm('Clear all timing and highlighting results?')) return;
+      LS.set('os.timings', []); LS.set('os.flagtests', []); renderTests(); return;
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.closest('#lock-body') && e.target.matches('input')) { e.preventDefault(); ($('[data-action=lock-unlock]') || $('[data-action=lock-create]')).click(); }
+});
+document.addEventListener('input', e => {
+  const t = e.target, k = t.dataset.input;
+  if (!S.consult) return;
+  if (t.id === 'c-ref') { S.consult.patientRef = t.value; renderSave(); return; }
+  if (k === 'flag') {
+    const cl = clipOf(t), item = t.dataset.kind === 'w' ? cl.words[+t.dataset.idx] : cl.markers[+t.dataset.idx];
+    item[t.dataset.key] = t.value; return;
+  }
+  if (k === 'field') {
+    const st = S.consult.fields[t.dataset.f]; touch(); st.text = t.value;
+    if (st.confirmed) { st.confirmed = false; }
+    t.classList.add('unconfirmed'); $('#meta-' + t.dataset.f).innerHTML = fieldMeta(t.dataset.f); renderSave(); return;
+  }
+});
+document.addEventListener('change', e => {
+  const t = e.target, k = t.dataset.input;
+  if (t.name === 'mode') { if (R.rec) { toast('Finish the current recording first.'); t.checked = false; $(`input[name=mode][value=${S.consult.mode}]`).checked = true; return; } S.consult.mode = t.value; renderAll(); return; }
+  if (t.id === 'c-consent') { S.consult.consent = t.checked; renderPatient(); return; }
+  if (k === 'clip-ack') { clipOf(t).ack = t.checked; return; }
+  if (k === 'flag' && t.dataset.key === 'twi') {
+    const cl = clipOf(t), item = t.dataset.kind === 'w' ? cl.words[+t.dataset.idx] : cl.markers[+t.dataset.idx];
+    const hit = getGloss().find(x => x.twi.toLowerCase() === t.value.trim().toLowerCase());
+    if (hit && !item.en.trim()) { item.en = hit.en; const enIn = t.closest('.pair').querySelector('[data-key=en]'); if (enIn) enIn.value = hit.en; toast('English meaning filled from the glossary. Check it fits.'); }
+    return;
+  }
+});
+
+/* ---------- start ---------- */
+if (!window.isSecureContext) {
+  document.body.innerHTML = '<p style="padding:1rem;font-family:system-ui">This app needs a secure (https) address for the microphone and encryption to work. Open it from its https link or from localhost.</p>';
+} else {
+  setLocked(true); renderLock(); newConsult(); renderGloss(); updateNet(); loadModel();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(e => console.warn('Offline cache not registered', e));
+}
+</script>
+</body>
+</html>
