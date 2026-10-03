@@ -123,6 +123,14 @@ dl dd{margin:0;white-space:pre-wrap}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 .75rem}
 @media (max-width:520px){.grid3{grid-template-columns:1fr}}
 .prose p,.prose li{max-width:65ch}
+@media (min-width:1100px){
+  #app{max-width:76rem}
+  .consult-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:0 1.25rem;align-items:start}
+  .panel:not(#tab-consult){max-width:48rem}
+}
+.actions.stack{flex-direction:column}
+.actions.stack .btn{width:100%}
+.linkish{font:inherit;background:none;border:0;padding:0;color:var(--primary);text-decoration:underline;cursor:pointer;min-height:44px}
 .route{background:#F3F7F5;border:1px solid var(--line);border-radius:var(--r-s);padding:.5rem .75rem;margin:.5rem 0}
 .route p{margin:0 0 .25rem}
 .route ul{margin:0;padding-left:1.1rem}
@@ -160,7 +168,8 @@ dl dd{margin:0;white-space:pre-wrap}
   </nav>
 
   <main>
-    <div class="panel" id="tab-consult" role="tabpanel">
+    <div class="panel consult-grid" id="tab-consult" role="tabpanel">
+     <div class="col">
       <section class="step">
         <h2><span class="n">1</span>Start</h2>
         <label for="c-ref">Patient reference <span class="req">(clinic number, not a name)</span></label>
@@ -170,13 +179,15 @@ dl dd{margin:0;white-space:pre-wrap}
           <label class="check"><input type="radio" name="mode" value="dictation" checked> Dictation</label>
           <label class="check"><input type="radio" name="mode" value="typing"> Typing only, for timing tests</label>
         </fieldset>
-        <label class="check"><input type="checkbox" id="c-consent"> The patient agreed to being recorded. Recordings stay on this phone and are deleted when the record is saved.</label>
+        <label class="check"><input type="checkbox" id="c-consent"> The patient agreed to being recorded. Recordings stay on this device and are deleted when the record is saved.</label>
       </section>
 
       <section class="step">
         <h2><span class="n">2</span>Record the consultation</h2>
         <div id="patient"></div>
       </section>
+     </div>
+     <div class="col">
 
       <section class="step">
         <h2><span class="n">3</span>Write the record</h2>
@@ -188,14 +199,20 @@ dl dd{margin:0;white-space:pre-wrap}
         <h2><span class="n">4</span>Save</h2>
         <div id="save"></div>
       </section>
+     </div>
     </div>
 
     <div class="panel" id="tab-records" role="tabpanel" hidden>
       <section class="step">
         <h2>Saved records</h2>
-        <p class="hint">Only records saved by the clinician who is signed in are shown. They are decrypted on this phone with your PIN.</p>
+        <p class="hint">Only records saved by the clinician who is signed in are shown. They are decrypted on this device with your PIN.</p>
         <div id="records-list"></div>
         <div class="actions"><button class="btn" data-action="rec-export">Export my records</button></div>
+      </section>
+      <section class="step">
+        <h2>Use another device</h2>
+        <p class="hint">Save a backup file, then open it on your other phone or computer from the sign-in screen. Your records stay encrypted inside the file and open only with your PIN. The glossary and test log come too.</p>
+        <div class="actions"><button class="btn" data-action="backup-export">Save backup file</button></div>
       </section>
     </div>
 
@@ -250,7 +267,7 @@ dl dd{margin:0;white-space:pre-wrap}
         <h2>About this prototype</h2>
         <h3>What it does</h3>
         <ul>
-          <li>Turns the consultation into a written record, using a speech model that runs on this phone.</li>
+          <li>Turns the consultation into a written record, using a speech model that runs on this device.</li>
           <li>Sorts the text into record sections when the clinician says a section name, such as "Medicines". This is a simple rule, not AI, and the clinician sees where everything will go before adding it.</li>
           <li>Lets the clinician highlight Twi words the patient used, replay just that moment, and write the meaning. Confirmed translations build a local glossary.</li>
         </ul>
@@ -265,12 +282,12 @@ dl dd{margin:0;white-space:pre-wrap}
         </ul>
         <h3>Where data sits</h3>
         <ul>
-          <li>Records are encrypted on this phone (AES-GCM, key derived from the clinician's PIN with PBKDF2, 200,000 rounds) and can only be opened with that PIN.</li>
+          <li>Records are encrypted on this device (AES-GCM, key derived from the clinician's PIN with PBKDF2, 200,000 rounds) and can only be opened with that PIN.</li>
           <li>Patient recordings are held in memory only and are deleted when the record is saved or discarded. They are never written to storage.</li>
           <li>The app locks after 3 minutes without use. Five wrong PINs trigger a 30 second wait. Switching clinician discards any unsaved consultation.</li>
           <li>The glossary and the test log are not encrypted. They contain no patient details.</li>
           <li>Exported files are not encrypted.</li>
-          <li>A 4 digit PIN has 10,000 possible combinations and could be guessed by someone who copies this phone's storage. A 6 digit PIN has 1,000,000. Use 6 to 8 digits.</li>
+          <li>A 4 digit PIN has 10,000 possible combinations and could be guessed by someone who copies this device's storage. A 6 digit PIN has 1,000,000. Use 6 to 8 digits.</li>
         </ul>
         <h3>Model and data</h3>
         <ul>
@@ -324,7 +341,7 @@ function toast(msg) {
 }
 const LS = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { toast('Could not save on this phone: storage is full or blocked by the browser.'); } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { toast('Could not save on this device: storage is full or blocked by the browser.'); } },
 };
 function download(name, text, type = 'application/json') {
   const a = document.createElement('a');
@@ -376,10 +393,22 @@ function setLocked(on) {
   document.body.classList.toggle('locked', on);
   $('#app').inert = on; $('#lock').hidden = !on;
 }
+// mode: undefined = welcome (choose sign in or set up), 'signin', or 'create'.
 function renderLock(mode) {
   const ps = LS.get('os.profiles', []); const box = $('#lock-body');
-  if (!ps.length || mode === 'create') {
-    box.innerHTML = `<h2>${ps.length ? 'Add a clinician' : 'Set up this phone'}</h2>
+  const importInput = `<input type="file" id="lk-import" accept=".json,application/json" hidden>`;
+  if (!mode) {
+    box.innerHTML = `<h2>Welcome</h2>
+      <p>Sign in if you already have an account on this device or a backup file from another device. Set up if you are new.</p>
+      <div class="actions stack">
+        <button class="btn primary big" data-action="lock-signin">Sign in</button>
+        <button class="btn big" data-action="lock-add">Set up a new account</button>
+      </div>`;
+    setTimeout(() => $('[data-action=lock-signin]')?.focus(), 50);
+    return;
+  }
+  if (mode === 'create') {
+    box.innerHTML = `<h2>Set up a new account</h2>
       <p>Each clinician has their own PIN. Records are encrypted with it, and only that clinician can open them.</p>
       <label for="lk-name">Your name</label><input id="lk-name" autocomplete="name">
       <label for="lk-pin">PIN, 4 to 8 digits <span class="req">(6 or more recommended)</span></label>
@@ -388,16 +417,28 @@ function renderLock(mode) {
       <input id="lk-pin2" type="password" inputmode="numeric" maxlength="8" autocomplete="new-password">
       <p class="warnline">If this PIN is forgotten, this clinician's records cannot be opened. There is no reset.</p>
       <p class="err" id="lk-err" role="alert"></p>
-      <div class="actions"><button class="btn primary big" data-action="lock-create">Create and unlock</button>
-      ${ps.length ? '<button class="btn quiet" data-action="lock-back">Back to unlock</button>' : ''}</div>`;
+      <div class="actions"><button class="btn primary big" data-action="lock-create">Create and sign in</button>
+      <button class="btn quiet" data-action="lock-back">Back</button></div>`;
+  } else if (!ps.length) {
+    box.innerHTML = `<h2>Sign in</h2>
+      <p>No accounts are saved on this device yet.</p>
+      <p>If you set up on another phone or computer, save a backup file there (Records, then <strong>Save backup file</strong>) and import it here. Then sign in with the same PIN.</p>
+      <p class="err" id="lk-err" role="alert"></p>
+      <div class="actions"><button class="btn primary big" data-action="lock-import">Import a backup file</button>
+      <button class="btn" data-action="lock-add">Set up a new account</button>
+      <button class="btn quiet" data-action="lock-back">Back</button></div>${importInput}`;
   } else {
-    box.innerHTML = `<h2>Unlock</h2>
-      <fieldset><legend>Clinician</legend>${ps.map((p, i) => `<label class="check"><input type="radio" name="lk-who" value="${p.id}" ${(S.profile ? S.profile.id === p.id : i === 0) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('')}</fieldset>
+    const last = S.profile?.id || LS.get('os.lastProfile', null);
+    const sel = ps.some(p => p.id === last) ? last : ps[0].id;
+    box.innerHTML = `<h2>Sign in</h2>
+      <p class="hint">Choose your name and enter your PIN.</p>
+      <fieldset><legend>Clinician</legend>${ps.map(p => `<label class="check"><input type="radio" name="lk-who" value="${p.id}" ${p.id === sel ? 'checked' : ''}> ${esc(p.name)}</label>`).join('')}</fieldset>
       <label for="lk-pin">PIN</label>
       <input id="lk-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="current-password">
       <p class="err" id="lk-err" role="alert"></p>
-      <div class="actions"><button class="btn primary big" data-action="lock-unlock">Unlock</button>
-      <button class="btn quiet" data-action="lock-add">Add a clinician</button></div>`;
+      <div class="actions"><button class="btn primary big" data-action="lock-unlock">Sign in</button>
+      <button class="btn quiet" data-action="lock-import">Import a backup file</button>
+      <button class="btn quiet" data-action="lock-back">Back</button></div>${importInput}`;
   }
   setTimeout(() => { const i = $('#lk-name') || $('#lk-pin'); if (i) i.focus(); }, 50);
 }
@@ -432,16 +473,58 @@ function enterApp(p, key) {
   if (S.profile && S.profile.id !== p.id && S.consult && consultHasContent()) {
     discardConsult(); toast("The previous clinician's unsaved consultation was discarded.");
   }
-  S.profile = p; S.key = key; $('#who').textContent = p.name;
+  S.profile = p; S.key = key; LS.set('os.lastProfile', p.id); $('#who').textContent = p.name;
   setLocked(false); armIdle(); refreshRecords();
 }
 async function lockNow() {
   if (R.rec) { await recStop(); toast('Recording stopped because the app locked.'); }
-  S.key = null; setLocked(true); renderLock(); renderAll();
+  S.key = null; setLocked(true); renderLock('signin'); renderAll();
 }
 let idleT;
 function armIdle() { clearTimeout(idleT); idleT = setTimeout(() => { if (S.key) lockNow(); }, LOCK_AFTER_MS); }
 ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { if (S.key) armIdle(); }, { passive: true }));
+
+/* ---------- move between devices ---------- */
+const BACKUP_FORMAT = 'goldnexus-carenote-backup';
+async function exportBackup() {
+  const records = (await idbAll('records')).filter(r => r.owner === S.profile.id);
+  const p = S.profile;
+  const data = { format: BACKUP_FORMAT, version: 1, exportedAt: new Date().toISOString(),
+    profile: { id: p.id, name: p.name, salt: p.salt, verifier: p.verifier },
+    records, glossary: getGloss(), timings: LS.get('os.timings', []), highlightTests: LS.get('os.flagtests', []) };
+  const slug = p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'clinician';
+  download(`carenote-backup-${slug}-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data));
+  toast(`Backup saved with ${records.length} record${records.length === 1 ? '' : 's'}. Records inside stay encrypted with your PIN.`);
+}
+async function importBackup(file) {
+  const err = $('#lk-err'); let d;
+  try { d = JSON.parse(await file.text()); } catch { d = null; }
+  if (!d || d.format !== BACKUP_FORMAT || !d.profile?.id || !d.profile?.salt || !d.profile?.verifier) {
+    if (err) err.textContent = 'This file is not a GOLDNexus CareNote backup.'; return;
+  }
+  const ps = LS.get('os.profiles', []);
+  if (!ps.some(x => x.id === d.profile.id)) { ps.push({ id: d.profile.id, name: d.profile.name, salt: d.profile.salt, verifier: d.profile.verifier }); LS.set('os.profiles', ps); }
+  const have = new Set(await store('records', 'readonly', s => s.getAllKeys()));
+  let n = 0;
+  for (const r of d.records || []) {
+    if (r && r.id && r.box && !have.has(r.id)) { await idbPut('records', { id: r.id, owner: d.profile.id, savedAt: r.savedAt, box: r.box }); n++; }
+  }
+  const g = getGloss();
+  for (const x of d.glossary || []) {
+    if (!x?.twi) continue;
+    const e = g.find(y => y.twi.toLowerCase() === x.twi.toLowerCase());
+    if (e) e.uses = Math.max(e.uses || 1, x.uses || 1); else g.push(x);
+  }
+  LS.set('os.glossary', g); renderGloss();
+  const mergeLog = (key, items) => { const cur = LS.get(key, []), seen = new Set(cur.map(x => x.at)); LS.set(key, cur.concat((items || []).filter(x => x?.at && !seen.has(x.at)))); };
+  mergeLog('os.timings', d.timings); mergeLog('os.flagtests', d.highlightTests);
+  LS.set('os.lastProfile', d.profile.id); renderLock('signin');
+  toast(`Backup imported for ${d.profile.name}: ${n} new record${n === 1 ? '' : 's'}. Sign in with the same PIN.`);
+}
+// Ask the browser not to clear this app's data automatically. Browsers may still say no.
+async function askPersist() {
+  try { if (navigator.storage?.persist) S.persisted = (await navigator.storage.persisted()) || (await navigator.storage.persist()); } catch { S.persisted = false; }
+}
 
 /* ---------- model ---------- */
 function setModelState(st, detail) {
@@ -612,7 +695,7 @@ async function finishPatient() {
   try {
     const r = await processCapture(cap);
     if (r.rejected) toast(r.rejected); else if (S.consult) S.consult.clips.push(buildClip(r));
-  } catch (err) { console.error(err); toast(`Transcription failed on this phone (${err.message}). The recording was not kept.`); }
+  } catch (err) { console.error(err); toast(`Transcription failed on this device (${err.message}). The recording was not kept.`); }
   finally { S.busy = null; renderAll(); }
 }
 async function finishField(fid) {
@@ -625,7 +708,7 @@ async function finishField(fid) {
       st.text = (st.text.trim() ? st.text.trimEnd() + ' ' : '') + r.text; st.confirmed = false; if (r.suspect) st.warn = true;
       r.pcm.fill(0);
     }
-  } catch (err) { console.error(err); toast(`Transcription failed on this phone (${err.message}).`); }
+  } catch (err) { console.error(err); toast(`Transcription failed on this device (${err.message}).`); }
   finally { S.busy = null; renderAll(); }
 }
 // Sorting by spoken section names. A simple rule, not AI: a section name counts only at the start
@@ -722,7 +805,7 @@ async function saveConsult() {
   };
   try {
     await idbPut('records', { id: rec.id, owner: S.profile.id, savedAt: rec.savedAt, box: await encryptJSON(S.key, rec) });
-  } catch (e) { console.error(e); return toast('The record could not be saved on this phone. Nothing was lost: try Save again.'); }
+  } catch (e) { console.error(e); return toast('The record could not be saved on this device. Nothing was lost: try Save again.'); }
   const secs = Math.round((Date.now() - (c.firstInputAt || c.startedAt)) / 1000);
   const log = LS.get('os.timings', []); log.push({ at: rec.savedAt, mode: c.mode, seconds: secs, chars: Object.values(rec.fields).join('').length }); LS.set('os.timings', log);
   wipeAudio(); newConsult(); refreshRecords();
@@ -747,8 +830,8 @@ function renderPatient() {
       <button class="btn big ${recHere ? 'recording' : 'primary'}" data-action="rec-patient" aria-pressed="${recHere}" ${disabled && !recHere ? 'disabled' : ''}>${recHere ? 'Stop and transcribe' : 'Record'}</button>
       ${recHere ? `<button class="btn twi big" data-action="mark-twi">Mark Twi word<span class="count" id="mark-count">${R.markers.length}</span></button>` : ''}
     </div>
-    ${recHere ? '<p class="live" aria-live="polite">Recording. Clips stop by themselves after 45 seconds.</p>' : ''}
-    ${S.busy === 'patient' ? '<p class="live" aria-live="polite">Transcribing on this phone. This can take a few seconds.</p>' : ''}
+    ${recHere ? '<p class="live" aria-live="polite">Recording. Clips stop by themselves after 45 seconds. On a computer you can also press T to mark a Twi word.</p>' : ''}
+    ${S.busy === 'patient' ? '<p class="live" aria-live="polite">Transcribing on this device. This can take a few seconds.</p>' : ''}
     ${c.clips.map((cl, i) => clipHTML(cl, i)).join('')}`;
 }
 function clipHTML(cl, i) {
@@ -791,7 +874,7 @@ function checkTokens(t) {
 }
 function fieldMeta(fid) {
   const st = S.consult.fields[fid], nums = checkTokens(st.text);
-  return `${S.busy === 'field:' + fid ? '<p class="live">Transcribing on this phone.</p>' : ''}
+  return `${S.busy === 'field:' + fid ? '<p class="live">Transcribing on this device.</p>' : ''}
     ${st.warn ? '<p class="warnline">Check this text: the speech model may have invented part of it.</p>' : ''}
     ${nums.length ? `<p class="checkline">Check numbers and doses against what was said: ${nums.map(n => `<mark>${esc(n)}</mark>`).join(' ')}</p>` : ''}
     <button class="btn small ${st.confirmed ? 'ok' : ''}" data-action="field-confirm" data-f="${fid}" aria-pressed="${st.confirmed}" ${st.text.trim() ? '' : 'disabled'}>${st.confirmed ? 'Confirmed' : 'Confirm this text'}</button>`;
@@ -812,7 +895,7 @@ function renderFields() {
 }
 function renderSave() {
   const b = consultBlockers();
-  $('#save').innerHTML = `${b.length ? `<ul class="blockers">${b.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="hint">Ready to save. The record is encrypted on this phone and every recording is deleted.</p>'}
+  $('#save').innerHTML = `${b.length ? `<ul class="blockers">${b.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="hint">Ready to save. The record is encrypted on this device and every recording is deleted.</p>'}
     <div class="actions"><button class="btn primary big" data-action="consult-save" ${b.length ? 'aria-disabled="true"' : ''}>Save record</button>
     <button class="btn quiet" data-action="consult-discard">Discard consultation</button></div>`;
 }
@@ -879,7 +962,7 @@ function renderTests() {
 function renderAbout() {
   const m = LS.get('os.modelBytes', null);
   $('#about-model').textContent = m ? `${mb(m.bytes)} across ${Object.keys(m.files).length} files, measured on ${new Date(m.at).toLocaleDateString()}.` : 'not measured yet. It is recorded the first time the model downloads.';
-  $('#about-offline').textContent = `${navigator.serviceWorker?.controller ? 'Offline cache is active.' : 'Offline cache is not active yet. Reload the page once while online.'} ${S.asr ? 'The speech model is loaded.' : 'The speech model is not loaded.'}`;
+  $('#about-offline').textContent = `${navigator.serviceWorker?.controller ? 'Offline cache is active.' : 'Offline cache is not active yet. Reload the page once while online.'} ${S.asr ? 'The speech model is loaded.' : 'The speech model is not loaded.'} ${S.persisted ? 'The browser has agreed not to clear this app\'s data automatically.' : 'The browser has not promised to keep this app\'s data, so save a backup file regularly.'}`;
 }
 
 /* ---------- tabs and network ---------- */
@@ -906,6 +989,9 @@ document.addEventListener('click', async e => {
     case 'lock-unlock': return lockUnlock();
     case 'lock-add': return renderLock('create');
     case 'lock-back': return renderLock();
+    case 'lock-signin': return renderLock('signin');
+    case 'lock-import': { const f = $('#lk-import'); if (f) f.click(); return; }
+    case 'backup-export': return exportBackup();
     case 'lock-now': return lockNow();
     case 'model-retry': return loadModel();
     case 'rec-patient':
@@ -981,6 +1067,9 @@ document.addEventListener('click', async e => {
   }
 });
 document.addEventListener('keydown', e => {
+  if (R.target === 'patient' && (e.key === 't' || e.key === 'T') && !e.target.matches('input, textarea, select')) {
+    e.preventDefault(); recMark(); const c = $('#mark-count'); if (c) c.textContent = R.markers.length; return;
+  }
   if (e.key === 'Enter' && e.target.closest('#lock-body') && e.target.matches('input')) { e.preventDefault(); ($('[data-action=lock-unlock]') || $('[data-action=lock-create]')).click(); }
 });
 document.addEventListener('input', e => {
@@ -999,6 +1088,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const t = e.target, k = t.dataset.input;
+  if (t.id === 'lk-import') { if (t.files && t.files[0]) importBackup(t.files[0]); t.value = ''; return; }
   if (t.name === 'mode') { if (R.rec) { toast('Finish the current recording first.'); t.checked = false; $(`input[name=mode][value=${S.consult.mode}]`).checked = true; return; } S.consult.mode = t.value; renderAll(); return; }
   if (t.id === 'c-consent') { S.consult.consent = t.checked; renderPatient(); return; }
   if (k === 'clip-ack') { clipOf(t).ack = t.checked; return; }
@@ -1014,7 +1104,7 @@ document.addEventListener('change', e => {
 if (!window.isSecureContext) {
   document.body.innerHTML = '<p style="padding:1rem;font-family:system-ui">This app needs a secure (https) address for the microphone and encryption to work. Open it from its https link or from localhost.</p>';
 } else {
-  setLocked(true); renderLock(); newConsult(); renderGloss(); updateNet(); loadModel();
+  setLocked(true); renderLock(); newConsult(); renderGloss(); updateNet(); loadModel(); askPersist();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(e => console.warn('Offline cache not registered', e));
 }
 </script>
