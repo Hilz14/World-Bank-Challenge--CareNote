@@ -123,6 +123,9 @@ dl dd{margin:0;white-space:pre-wrap}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 .75rem}
 @media (max-width:520px){.grid3{grid-template-columns:1fr}}
 .prose p,.prose li{max-width:65ch}
+.route{background:#F3F7F5;border:1px solid var(--line);border-radius:var(--r-s);padding:.5rem .75rem;margin:.5rem 0}
+.route p{margin:0 0 .25rem}
+.route ul{margin:0;padding-left:1.1rem}
 .prose h3{margin-top:1rem}
 </style>
 </head>
@@ -171,13 +174,13 @@ dl dd{margin:0;white-space:pre-wrap}
       </section>
 
       <section class="step">
-        <h2><span class="n">2</span>Listen to the patient</h2>
+        <h2><span class="n">2</span>Record the consultation</h2>
         <div id="patient"></div>
       </section>
 
       <section class="step">
         <h2><span class="n">3</span>Write the record</h2>
-        <p class="hint">Dictated text appears with a dashed border until you confirm it. Nothing is saved until every filled field is confirmed.</p>
+        <p class="hint">Text from step 2 lands here. Use <strong>Dictate</strong> beside a field to add to it or correct it. Text has a dashed border until you confirm it, and nothing is saved until every filled field is confirmed.</p>
         <div id="fields"></div>
       </section>
 
@@ -247,12 +250,14 @@ dl dd{margin:0;white-space:pre-wrap}
         <h2>About this prototype</h2>
         <h3>What it does</h3>
         <ul>
-          <li>Turns the clinician's dictation and the patient's own words into a written record, using a speech model that runs on this phone.</li>
+          <li>Turns the consultation into a written record, using a speech model that runs on this phone.</li>
+          <li>Sorts the text into record sections when the clinician says a section name, such as "Medicines". This is a simple rule, not AI, and the clinician sees where everything will go before adding it.</li>
           <li>Lets the clinician highlight Twi words the patient used, replay just that moment, and write the meaning. Confirmed translations build a local glossary.</li>
         </ul>
         <h3>What it does not do</h3>
         <ul>
           <li>It does not diagnose or suggest a diagnosis.</li>
+          <li>It does not decide by meaning which section text belongs in. Only spoken section names move text.</li>
           <li>It does not translate Twi automatically. A clinician translates every highlighted word.</li>
           <li>It does not send anything to the patient's phone.</li>
           <li>It does not score its own confidence word by word. Highlights come from the clinician's marks and taps.</li>
@@ -299,7 +304,7 @@ const SUSPECT = ['thank you', 'thank you.', 'thanks for watching', 'thanks for w
 
 const FIELDS = [
   { id: 'complaint', label: 'Presenting complaint', req: true },
-  { id: 'account', label: "Patient's account", hint: 'Filled from patient recordings, or typed.' },
+  { id: 'account', label: "Patient's account", hint: 'Filled from recordings, or typed.' },
   { id: 'findings', label: 'Examination findings' },
   { id: 'plan', label: 'Plan' },
   { id: 'medicines', label: 'Medicines and doses' },
@@ -623,21 +628,70 @@ async function finishField(fid) {
   } catch (err) { console.error(err); toast(`Transcription failed on this phone (${err.message}).`); }
   finally { S.busy = null; renderAll(); }
 }
+// Sorting by spoken section names. A simple rule, not AI: a section name counts only at the start
+// of the recording or straight after punctuation, so ordinary words like "plan" mid-sentence are left alone.
+const SECTION_LABELS = [
+  ['complaint', ['presenting', 'complaint']], ['complaint', ['chief', 'complaint']], ['complaint', ['complaint']], ['complaint', ['complaints']],
+  ['account', ["patient's", 'account']], ['account', ['patients', 'account']], ['account', ['patient', 'account']], ['account', ['account']],
+  ['findings', ['examination', 'findings']], ['findings', ['on', 'examination']], ['findings', ['examination']], ['findings', ['findings']],
+  ['plan', ['plan']],
+  ['medicines', ['medicines']], ['medicines', ['medicine']], ['medicines', ['medications']], ['medicines', ['medication']],
+  ['followup', ['follow', 'up']], ['followup', ['followup']],
+].sort((a, b) => b[1].length - a[1].length);
+const normWord = t => t.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[^a-z']/g, '').replace(/^'+|'+$/g, '');
+function splitSections(words) {
+  const segs = []; let cur = { field: 'account', idx: [] };
+  for (let i = 0; i < words.length;) {
+    const boundary = i === 0 || /[.!?,;:]$/.test(words[i - 1].text.trim());
+    let hit = null;
+    if (boundary) for (const [field, seq] of SECTION_LABELS) {
+      if (seq.every((s, k) => words[i + k] && normWord(words[i + k].text) === s)) { hit = { field, len: seq.length }; break; }
+    }
+    if (hit) { if (cur.idx.length) segs.push(cur); cur = { field: hit.field, idx: [] }; i += hit.len; continue; }
+    cur.idx.push(i); i++;
+  }
+  if (cur.idx.length) segs.push(cur);
+  return segs;
+}
+function tidy(s) {
+  s = s.replace(/\s+([.,!?;:])/g, '$1').replace(/^[\s.,;:!?-]+/, '').trim();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+}
+// Returns [{field, text}] with Twi words replaced by their English meaning, one entry per field.
+function clipRouting(cl, forPreview) {
+  const out = {};
+  for (const seg of splitSections(cl.words)) {
+    const t = tidy(seg.idx.map(i => { const w = cl.words[i];
+      if (!w.flag) return w.text;
+      return forPreview ? `${w.text} [Twi]` : `${w.en.trim()} [Twi: ${w.twi.trim() || 'not written'}]`;
+    }).join(' '));
+    if (t) out[seg.field] = out[seg.field] ? out[seg.field] + ' ' + t : t;
+  }
+  const extra = cl.markers.filter(m => !m.attached && !m.dismissed);
+  if (extra.length) {
+    const note = forPreview ? `(Also said in Twi: ${extra.length} marked word${extra.length > 1 ? 's' : ''}.)`
+      : `(Also said in Twi: ${extra.map(m => `${m.en.trim()} [Twi: ${m.twi.trim() || 'not written'}]`).join('; ')}.)`;
+    out.account = out.account ? out.account + ' ' + note : note;
+  }
+  return FIELDS.filter(f => out[f.id]).map(f => ({ field: f.id, text: out[f.id] }));
+}
 function clipBlockers(cl) {
   const missing = cl.words.filter(w => w.flag && !w.en.trim()).length + cl.markers.filter(m => !m.attached && !m.dismissed && !m.en.trim()).length;
-  if (cl.suspect && !cl.ack) return 'Replay the clip and tick the check box before adding it.';
+  if (cl.suspect && !cl.ack) return 'Replay the recording and tick the check box before adding it.';
   if (missing) return `Write the English meaning for ${missing} Twi item${missing > 1 ? 's' : ''}, or remove the highlight, first.`;
   return null;
 }
 function insertClip(cl) {
   const block = clipBlockers(cl); if (block) return toast(block);
-  let s = cl.words.map(w => w.flag ? `${w.en.trim()} [Twi: ${w.twi.trim() || 'not written'}]` : w.text).join(' ').replace(/\s+([.,!?;:])/g, '$1');
-  const extra = cl.markers.filter(m => !m.attached && !m.dismissed).map(m => `${m.en.trim()} [Twi: ${m.twi.trim() || 'not written'}]`);
-  if (extra.length) s += ` (Also said in Twi: ${extra.join('; ')}.)`;
-  const st = S.consult.fields.account;
-  st.text = (st.text.trim() ? st.text.trimEnd() + '\n' : '') + s; st.confirmed = false;
+  const routes = clipRouting(cl, false);
+  if (!routes.length) return toast('There is no text in this recording to add.');
+  for (const r of routes) {
+    const st = S.consult.fields[r.field];
+    st.text = (st.text.trim() ? st.text.trimEnd() + '\n' : '') + r.text; st.confirmed = false;
+  }
   for (const it of [...cl.words.filter(w => w.flag), ...cl.markers.filter(m => !m.attached && !m.dismissed)]) if (it.twi.trim() && it.en.trim()) addGloss(it.twi, it.en);
-  cl.inserted = true; toast("Added to the patient's account. Check and confirm it in step 3.");
+  cl.inserted = true;
+  toast(`Added to ${routes.map(r => FIELDS.find(f => f.id === r.field).label).join(', ')}. Check and confirm each in step 3.`);
   renderAll();
 }
 function consultBlockers() {
@@ -647,7 +701,7 @@ function consultBlockers() {
   const unconf = FIELDS.filter(f => c.fields[f.id].text.trim() && !c.fields[f.id].confirmed).map(f => f.label);
   if (unconf.length) b.push('Confirm: ' + unconf.join(', ') + '.');
   const pending = c.clips.filter(cl => !cl.inserted && !cl.discarded).length;
-  if (pending) b.push(`${pending} patient clip${pending > 1 ? 's are' : ' is'} not added to the record. Add or discard ${pending > 1 ? 'them' : 'it'}.`);
+  if (pending) b.push(`${pending} recording${pending > 1 ? 's are' : ' is'} not added to the record. Add or discard ${pending > 1 ? 'them' : 'it'}.`);
   if (R.rec || S.busy) b.push('Finish the current recording first.');
   return b;
 }
@@ -683,14 +737,14 @@ function renderAll() {
 function renderPatient() {
   const c = S.consult, box = $('#patient'), recHere = R.target === 'patient';
   let why = '';
-  if (c.mode === 'typing') why = 'Typing-only mode: patient recording is off for this timing test.';
-  else if (!c.consent) why = 'Tick the consent box in step 1 before recording the patient.';
+  if (c.mode === 'typing') why = 'Typing-only mode: recording is off for this timing test.';
+  else if (!c.consent) why = 'Tick the consent box in step 1 before recording.';
   else if (!S.asr) why = 'The speech model is still loading. Recording starts working when it is ready.';
   const disabled = !!why || (R.rec && !recHere) || !!S.busy;
   box.innerHTML = `
-    <p class="hint">${why ? esc(why) : 'Record short turns. Press <strong>Mark Twi word</strong> the moment the patient uses a Twi word.'}</p>
+    <p class="hint">${why ? esc(why) : 'Start each part with its section name: <strong>Complaint</strong>, <strong>Account</strong>, <strong>Findings</strong>, <strong>Plan</strong>, <strong>Medicines</strong> or <strong>Follow-up</strong>, then pause briefly. Anything before the first section name goes into the patient\'s account. Press <strong>Mark Twi word</strong> the moment a Twi word is used.'}</p>
     <div class="recrow">
-      <button class="btn big ${recHere ? 'recording' : 'primary'}" data-action="rec-patient" aria-pressed="${recHere}" ${disabled && !recHere ? 'disabled' : ''}>${recHere ? 'Stop and transcribe' : 'Record patient'}</button>
+      <button class="btn big ${recHere ? 'recording' : 'primary'}" data-action="rec-patient" aria-pressed="${recHere}" ${disabled && !recHere ? 'disabled' : ''}>${recHere ? 'Stop and transcribe' : 'Record'}</button>
       ${recHere ? `<button class="btn twi big" data-action="mark-twi">Mark Twi word<span class="count" id="mark-count">${R.markers.length}</span></button>` : ''}
     </div>
     ${recHere ? '<p class="live" aria-live="polite">Recording. Clips stop by themselves after 45 seconds.</p>' : ''}
@@ -702,21 +756,22 @@ function clipHTML(cl, i) {
   const ro = cl.inserted;
   const flagged = cl.words.map((w, wi) => ({ w, wi })).filter(x => x.w.flag);
   const loose = cl.markers.map((m, mi) => ({ m, mi })).filter(x => !x.m.attached && !x.m.dismissed);
-  return `<article class="clip" aria-label="Patient clip ${i + 1}">
-    <div class="cliphead"><h3>Patient clip ${i + 1}</h3><span class="meta">${cl.duration.toFixed(1)} s${cl.noWords ? ', no word timings' : ''}</span>
+  return `<article class="clip" aria-label="Recording ${i + 1}">
+    <div class="cliphead"><h3>Recording ${i + 1}</h3><span class="meta">${cl.duration.toFixed(1)} s${cl.noWords ? ', no word timings' : ''}</span>
       <span class="tag ${ro ? 'ok' : ''}">${ro ? 'Added to record' : 'Not yet added'}</span></div>
     ${cl.suspect ? `<div class="warn" role="alert"><p>This text may have been invented by the speech model, which happens most on silence and long pauses. Replay the clip and check it.</p>
       <label class="check"><input type="checkbox" data-input="clip-ack" data-clip="${i}" ${cl.ack ? 'checked' : ''} ${ro ? 'disabled' : ''}> I replayed it and the text matches what was said</label></div>` : ''}
     <p class="transcript">${cl.words.length ? cl.words.map((w, wi) => `<button type="button" class="w ${w.flag ? 'flag' : ''}" data-action="word" data-clip="${i}" data-w="${wi}" aria-pressed="${!!w.flag}" ${ro ? 'disabled' : ''}>${esc(w.text)}</button>`).join(' ') : '<em>No words recognised.</em>'}</p>
-    ${ro ? '' : '<p class="hint small">Tap any word to mark it as Twi. Marked words need an English meaning before the clip can be added.</p>'}
+    ${ro ? '' : '<p class="hint small">Tap any word to mark it as Twi. Marked words need an English meaning before the recording can be added.</p>'}
+    ${(() => { const rs = clipRouting(cl, true); return rs.length ? `<div class="route"><p class="small"><strong>${ro ? 'Added to' : 'Where this will go'}</strong></p><ul>${rs.map(r => `<li><strong>${FIELDS.find(f => f.id === r.field).label}:</strong> ${esc(r.text)}</li>`).join('')}</ul></div>` : ''; })()}
     ${flagged.length || loose.length ? `<div class="flags">
       ${flagged.map(({ w, wi }) => flagRow(i, 'w', wi, `Heard as \u201C${esc(w.text)}\u201D`, w, w.flag === 'marker' ? 'Suggested from your Twi mark' : 'Marked by you', ro)).join('')}
       ${loose.map(({ m, mi }) => flagRow(i, 'm', mi, `Twi mark at ${m.t.toFixed(1)} s`, m, 'No word lined up with this mark', ro)).join('')}
     </div>` : ''}
     <div class="actions">
       <button class="btn" data-action="clip-replay" data-clip="${i}" ${cl.pcm ? '' : 'disabled'}>Replay clip</button>
-      ${ro ? '' : `<button class="btn primary" data-action="clip-insert" data-clip="${i}">Add to patient's account</button>
-      <button class="btn quiet" data-action="clip-discard" data-clip="${i}">Discard clip</button>`}
+      ${ro ? '' : `<button class="btn primary" data-action="clip-insert" data-clip="${i}">Add to record</button>
+      <button class="btn quiet" data-action="clip-discard" data-clip="${i}">Discard recording</button>`}
     </div></article>`;
 }
 function flagRow(ci, kind, idx, title, item, src, ro) {
@@ -792,7 +847,7 @@ function renderGloss() {
   $('#gloss-twi').innerHTML = g.map(x => `<option value="${esc(x.twi)}"></option>`).join('');
   $('#gloss').innerHTML = g.length ? `<div class="tablewrap"><table><thead><tr><th scope="col">Twi</th><th scope="col">English</th><th scope="col">Times used</th><th scope="col"><span class="req">Remove</span></th></tr></thead>
     <tbody>${g.map((x, i) => `<tr><td>${esc(x.twi)}</td><td>${esc(x.en)}</td><td>${x.uses || 1}</td><td><button class="btn small quiet" data-action="gloss-del" data-twi="${esc(x.twi)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
-    : '<p class="empty">No words yet. Translations you confirm when adding a patient clip are saved here, or add one below.</p>';
+    : '<p class="empty">No words yet. Translations you confirm when adding a recording are saved here, or add one below.</p>';
 }
 
 /* ---------- tests ---------- */
@@ -812,7 +867,7 @@ function renderTests() {
   html += '<p class="hint small">A small test run by one person. Report it as that, not as a general result.</p>';
   $('#timings').innerHTML = html;
   const cl = [...(S.consult?.clips || [])].reverse().find(x => !x.discarded);
-  $('#latest-clip').innerHTML = cl ? `<p class="hint">Latest patient clip: ${cl.words.filter(w => w.flag === 'marker').length} word(s) highlighted from Twi marks, ${cl.words.filter(w => w.flag === 'manual').length} tapped by you, ${cl.markers.filter(m => !m.attached).length} mark(s) with no word lined up.</p>` : '';
+  $('#latest-clip').innerHTML = cl ? `<p class="hint">Latest recording: ${cl.words.filter(w => w.flag === 'marker').length} word(s) highlighted from Twi marks, ${cl.words.filter(w => w.flag === 'manual').length} tapped by you, ${cl.markers.filter(m => !m.attached).length} mark(s) with no word lined up.</p>` : '';
   const ft = LS.get('os.flagtests', []), methods = { mark: 'Mark button', tap: 'Tapping', both: 'Both' };
   $('#flagtests').innerHTML = ft.length ? `<div class="tablewrap"><table><thead><tr><th scope="col">Method</th><th scope="col">Highlight rate</th><th scope="col">Wrong highlights</th></tr></thead><tbody>
     ${ft.map(x => `<tr><td>${methods[x.method]}</td><td>${x.k} \u00F7 ${x.n} = ${x.n ? ((x.k / x.n) * 100).toFixed(1) + '%' : 'n/a'}</td><td>${x.f}</td></tr>`).join('')}
@@ -875,7 +930,7 @@ document.addEventListener('click', async e => {
     case 'clip-replay': return playPCM(clipOf(b).pcm);
     case 'clip-insert': return insertClip(clipOf(b));
     case 'clip-discard': {
-      if (!confirm('Discard this patient clip? Its recording and text will be deleted.')) return;
+      if (!confirm('Discard this recording? Its audio and text will be deleted.')) return;
       const cl = clipOf(b); if (cl.pcm) { cl.pcm.fill(0); cl.pcm = null; } cl.discarded = true; renderAll(); return;
     }
     case 'field-dictate': {
