@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Ondera Scribe</title>
+<title>GOLDNexus CareNote</title>
 <meta name="theme-color" content="#0B6E4F">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -130,14 +130,14 @@ dl dd{margin:0;white-space:pre-wrap}
 
 <div id="lock" role="dialog" aria-modal="true" aria-labelledby="lock-title">
   <div class="inner">
-    <h1 id="lock-title">Ondera Scribe</h1>
+    <h1 id="lock-title">GOLDNexus CareNote</h1>
     <div id="lock-body"></div>
   </div>
 </div>
 
 <div id="app">
   <header class="top">
-    <h1>Ondera Scribe</h1>
+    <h1>GOLDNexus CareNote</h1>
     <span class="chip" id="chip-model">Speech model: starting</span>
     <span class="chip" id="chip-net">Online</span>
     <span class="chip" id="who"></span>
@@ -330,7 +330,7 @@ function download(name, text, type = 'application/json') {
 
 /* ---------- IndexedDB ---------- */
 const dbp = new Promise((res, rej) => {
-  const r = indexedDB.open('ondera-scribe', 1);
+  const r = indexedDB.open('goldnexus-carenote', 1);
   r.onupgradeneeded = () => { const db = r.result; db.createObjectStore('records', { keyPath: 'id' }); db.createObjectStore('audio', { keyPath: 'key' }); };
   r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
 });
@@ -517,16 +517,33 @@ function trimSilence(x) {
   const pad = Math.round(0.15 * SR), s = Math.max(0, a * fl - pad), e = Math.min(x.length, (b + 1) * fl + pad);
   return { audio: x.slice(s, e), voiced: voiced * 0.02, start: s / SR };
 }
-let playCtx = null;
+function wav(x) {
+  const b = new ArrayBuffer(44 + x.length * 2), v = new DataView(b);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + x.length * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, SR, true);
+  v.setUint32(28, SR * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, x.length * 2, true);
+  for (let i = 0; i < x.length; i++) { const s = Math.max(-1, Math.min(1, x[i])); v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true); }
+  return new Blob([b], { type: 'audio/wav' });
+}
+// Plays part of a clip through a normal audio element (works with the iPhone silent switch, unlike Web Audio).
+let currentAudio = null;
 async function playPCM(x, from = 0, to = null) {
   if (!x) return toast('This recording has been deleted.');
-  const AC = window.AudioContext || window.webkitAudioContext;
-  playCtx = playCtx || new AC(); await playCtx.resume();
-  const s = Math.max(0, Math.floor(from * SR)), e = Math.min(x.length, Math.floor((to ?? x.length / SR) * SR));
-  if (e <= s) return;
-  const seg = x.slice(s, e), b = playCtx.createBuffer(1, seg.length, SR);
-  b.copyToChannel(seg, 0);
-  const src = playCtx.createBufferSource(); src.buffer = b; src.connect(playCtx.destination); src.start();
+  const total = x.length / SR;
+  let a = Number.isFinite(from) ? Math.max(0, from) : 0;
+  let b = Number.isFinite(to) ? Math.min(total, to) : total;
+  if (b - a < 0.3) { a = Math.max(0, a - 0.5); b = Math.min(total, a + 1.5); }
+  const seg = x.slice(Math.floor(a * SR), Math.floor(b * SR));
+  if (!seg.length) return toast('There is no audio at that point in the clip.');
+  try {
+    if (currentAudio) { currentAudio.pause(); URL.revokeObjectURL(currentAudio.src); }
+    currentAudio = new Audio(URL.createObjectURL(wav(seg)));
+    await currentAudio.play();
+  } catch (e) {
+    console.error(e);
+    toast(`The phone did not play the audio (${e.message}). Check the volume and try again.`);
+  }
 }
 
 /* ---------- speech recognition ---------- */
@@ -849,7 +866,9 @@ document.addEventListener('click', async e => {
     }
     case 'word-replay': {
       const cl = clipOf(b), w = cl.words[+b.dataset.idx];
-      return w.start != null ? playPCM(cl.pcm, Math.max(0, w.start - 0.4), w.end + 0.6) : playPCM(cl.pcm);
+      const timed = Number.isFinite(w.start) && Number.isFinite(w.end) && w.end > w.start;
+      if (!timed) { toast('This word has no timing, so the whole clip will play.'); return playPCM(cl.pcm); }
+      return playPCM(cl.pcm, w.start - 0.4, w.end + 0.6);
     }
     case 'mark-replay': { const cl = clipOf(b), m = cl.markers[+b.dataset.idx]; return playPCM(cl.pcm, Math.max(0, m.t - 2.5), m.t + 1); }
     case 'mark-dismiss': { clipOf(b).markers[+b.dataset.idx].dismissed = true; renderPatient(); return; }
@@ -876,7 +895,7 @@ document.addEventListener('click', async e => {
       discardConsult(); toast('Consultation discarded. Recordings deleted.'); return;
     case 'rec-export': {
       if (!S.records.length) return toast('There are no saved records to export.');
-      download(`ondera-records-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(S.records, null, 2));
+      download(`carenote-records-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(S.records, null, 2));
       return toast('Exported. This file is not encrypted, so keep it somewhere safe.');
     }
     case 'gloss-add': {
@@ -900,7 +919,7 @@ document.addEventListener('click', async e => {
       ['#t-n', '#t-k', '#t-f'].forEach(s => { $(s).value = ''; }); renderTests(); return;
     }
     case 'test-export':
-      return download('ondera-test-log.json', JSON.stringify({ timings: LS.get('os.timings', []), highlightTests: LS.get('os.flagtests', []), model: MODEL_ID, modelDownload: LS.get('os.modelBytes', null) }, null, 2));
+      return download('carenote-test-log.json', JSON.stringify({ timings: LS.get('os.timings', []), highlightTests: LS.get('os.flagtests', []), model: MODEL_ID, modelDownload: LS.get('os.modelBytes', null) }, null, 2));
     case 'test-clear':
       if (!confirm('Clear all timing and highlighting results?')) return;
       LS.set('os.timings', []); LS.set('os.flagtests', []); renderTests(); return;
