@@ -1,8 +1,8 @@
 // GOLDNexus CareNote offline cache.
 // Same-site files: network first, so updates show while online; cached copy when offline.
-// Library and font files from CDNs: cache first.
+// Runtime files from CDNs: cache first.
 // Hugging Face model files are skipped here because Transformers.js caches them itself.
-const CACHE = 'goldnexus-carenote-v2';
+const CACHE = 'goldnexus-carenote-v3';
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', './index.html'])).then(() => self.skipWaiting()));

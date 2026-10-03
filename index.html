@@ -4,10 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GOLDNexus CareNote</title>
-<meta name="theme-color" content="#0B6E4F">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#176A55">
 <style>
 :root{
   --bg:#EEF2F0; --surface:#FFFFFF; --ink:#16233A; --muted:#4F5B6B; --line:#C6D0CB;
@@ -135,24 +132,209 @@ dl dd{margin:0;white-space:pre-wrap}
 .route p{margin:0 0 .25rem}
 .route ul{margin:0;padding-left:1.1rem}
 .prose h3{margin-top:1rem}
+/* CareNote interface: system fonts and local assets keep the layout available offline. */
+:root{
+  --bg:#F5F6F2;--ink:#20362F;--muted:#5B6B63;--line:#DAE2DB;
+  --primary:#176A55;--ok:#176A55;--focus:#176A55;--r-s:10px;--r-m:18px;
+}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.55}
+body.locked{overflow:hidden}
+[hidden]{display:none!important}
+#app{max-width:74rem;padding:0 1.5rem 3rem}
+.top{gap:.75rem;padding:1.4rem 0;border-bottom:1px solid var(--line);margin-bottom:1rem}
+.brand{display:flex;align-items:center;gap:.75rem;margin-right:auto;min-width:0}
+.brand-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:var(--primary);color:#fff;flex:none}
+.brand-mark svg{width:25px;height:25px}
+.brand h1{font-size:1.45rem;letter-spacing:-.045em;line-height:1.1;margin:0}
+.brand p{font-size:.68rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:.3rem 0 0}
+.top-status{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem}
+.chip{font-size:.75rem;line-height:1.3;font-weight:600;padding:.45rem .65rem;border:1px solid var(--line);background:#fff}
+.chip.good{background:#EAF4ED;border-color:#CFDFD4;color:#205D47}
+.chip.bad{background:#FCEFEB;border-color:#E6B5AB}
+#who:empty{display:none}
+#model-progress{padding:.6rem .9rem;border-radius:12px;background:#fff;border:1px solid var(--line)}
+.lock-button{border-color:var(--line);background:transparent!important;font-size:.8rem}
+nav.tabs{gap:.25rem;border:0;padding:0 0 .85rem;margin:0;scrollbar-width:thin}
+nav.tabs button{border:0;border-radius:10px;min-height:44px;padding:.6rem .95rem;font-size:.875rem;font-weight:600;color:var(--muted)}
+nav.tabs button:hover{background:#E9EEE7}
+nav.tabs button[aria-selected=true]{background:#E3EDE5;color:var(--primary);box-shadow:inset 0 0 0 1px #D3DFD5}
+.consult-intro{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:1.6rem 0 1.5rem}
+.eyebrow{color:var(--primary);font-size:.68rem;letter-spacing:.14em;font-weight:750;text-transform:uppercase;margin:0 0 .4rem}
+.consult-intro h2{font-size:1.85rem;letter-spacing:-.045em;line-height:1.15;margin:0 0 .45rem;font-weight:650;display:block}
+.consult-intro p:not(.eyebrow){font-size:.9rem;color:var(--muted);margin:0;max-width:44ch}
+.workflow-state{font-size:.75rem;white-space:nowrap;background:#FFF;border:1px solid var(--line);padding:.5rem .8rem;border-radius:999px;color:var(--muted)}
+.prototype-note{padding:.65rem .85rem;font-size:.75rem;border:1px solid #E5DFCA;border-radius:10px;background:#F8F5E9;color:#655C38;margin-bottom:1.2rem}
+.consult-grid{display:block}
+.consult-grid>.consult-intro,.consult-grid>.prototype-note{grid-column:1/-1}
+section.step{border:1px solid var(--line);box-shadow:0 3px 12px #21382B04;padding:1.35rem;margin-bottom:1rem;border-radius:var(--r-m)}
+.step-heading{display:flex;align-items:center;gap:.7rem;margin-bottom:1.15rem}
+.step-heading h2{font-size:1rem;letter-spacing:-.025em;margin:0;line-height:1.35}
+.step-heading p{font-size:.75rem;color:var(--muted);margin:.18rem 0 0}
+.step-number{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;background:#EDF2EB;color:var(--primary);font-size:.78rem;font-weight:750;flex:none}
+label,legend{font-size:.85rem;font-weight:650}
+input:not([type=checkbox]):not([type=radio]),select,textarea{border:1px solid #CED9D1;padding:.8rem .85rem;min-height:48px;font-size:.925rem;background:#FFF}
+input::placeholder,textarea::placeholder{color:#758379;opacity:1}
+textarea{line-height:1.65}
+textarea.unconfirmed{background:#FAFBF8;border-color:#BACBBD;border-style:dashed}
+textarea:not(.unconfirmed){background:#F4FAF5;border-color:#AECDB9}
+.check{font-size:.83rem;line-height:1.5;gap:.65rem;cursor:pointer}
+.check input{width:20px;height:20px;margin-top:2px}
+.consent-box{background:#F3F6EF;border:1px solid #E0E7DB;border-radius:12px;padding:.9rem;margin-top:1.2rem}
+.consent-box label{margin:0}
+.mode-options{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.4rem}
+.mode-options label{flex:1 1 9rem;padding:.55rem .65rem;border:1px solid var(--line);border-radius:9px;align-items:center;margin:0;font-size:.8rem;min-height:44px}
+.mode-options label:has(input:checked){background:#EAF2E8;border-color:#AEC6B2;color:var(--primary)}
+.mode-options input{width:16px;height:16px;margin:0}
+.mode-field{margin:1rem 0 0}
+.btn{min-height:44px;padding:.65rem .95rem;font-size:.85rem;border:1px solid #CED8D0;transition:background .15s ease,box-shadow .15s ease}
+.btn:hover:not(:disabled):not([aria-disabled=true]){background:#F0F5EE}
+.btn.primary:hover:not(:disabled){background:#125541}
+.btn.primary{background:var(--primary);border-color:var(--primary)}
+.btn.big{font-size:.9rem;min-height:50px;padding:.85rem 1.15rem}
+.btn.quiet{color:var(--muted);font-weight:500;text-decoration:none;border-color:transparent}
+.btn.quiet:hover:not(:disabled){text-decoration:underline}
+.btn:disabled,.btn[aria-disabled=true]{opacity:.55}
+.btn.recording{background:var(--danger);border-color:var(--danger);color:white}
+.btn.recording:hover:not(:disabled){background:#821818}
+.btn.ok{background:#ECF5EB;border-color:#CBDDC9;color:#2B6548}
+.btn.small{font-size:.75rem;min-height:44px;padding:.5rem .7rem}
+.hint{font-size:.85rem;line-height:1.6;margin:.35rem 0 .8rem}
+.small{font-size:.78rem}
+.language-note{border-left:3px solid #CDA75B;background:#FBF8EE;border-radius:0 9px 9px 0;padding:.7rem .8rem;font-size:.78rem;color:#665533;margin:.6rem 0 1rem}
+.record-empty{padding:1.4rem 1rem;border:1px dashed #D7E1D5;border-radius:14px;background:#FAFCF8;text-align:center;margin:1rem 0}
+.record-visual{display:flex;justify-content:center;align-items:center;gap:4px;height:35px;margin-bottom:.65rem;color:var(--primary)}
+.record-visual span{display:block;background:currentColor;width:4px;border-radius:3px;height:10px;opacity:.65}
+.record-visual span:nth-child(2),.record-visual span:nth-child(6){height:18px}
+.record-visual span:nth-child(3),.record-visual span:nth-child(5){height:27px}
+.record-visual span:nth-child(4){height:35px}
+.record-empty strong{font-size:.85rem;display:block}
+.record-empty p{font-size:.78rem;color:var(--muted);margin:.25rem auto 0;max-width:32ch}
+.recrow>.btn{flex:1}
+.help{margin-top:.8rem;color:var(--muted);font-size:.8rem}
+.help summary{display:flex;align-items:center;min-height:44px;font-size:.8rem;color:var(--primary);font-weight:600}
+.help summary::before{content:'+';margin-right:.5rem;font-size:1.1rem}
+.help[open] summary::before{content:'−'}
+.help p{margin:.35rem 0 .65rem}
+.clip{border:1px solid #D9E3D6;border-radius:13px;background:#FBFCF8;padding:1rem;margin-top:1rem}
+.cliphead h3{font-size:.85rem}
+.tag{font-size:.7rem;padding:.18rem .5rem;background:#fff}
+.transcript{font-size:.95rem;line-height:2}
+.w{min-height:35px}
+.w:disabled{opacity:.85}
+.flagrow{font-size:.82rem;border-left-width:3px;border-radius:0 10px 10px 0}
+.field{margin-top:1rem}
+.field:first-child{margin-top:0}
+.fieldhead{align-items:center;margin-bottom:.35rem}
+.fieldhead label{font-size:.82rem}
+.fieldhead .btn{margin-left:.5rem}
+.field-status{display:flex;justify-content:flex-end;margin-top:.3rem}
+.field-status .btn{min-height:44px}
+.checkline{font-size:.76rem;margin:.6rem 0;color:var(--muted)}
+.review-summary{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1.1rem}
+.review-summary span{border:1px solid #DCE5D8;padding:.3rem .65rem;border-radius:999px;color:var(--muted);font-size:.7rem;background:#F7FAF3}
+.review-summary .pending{background:#FBF7ED;border-color:#E8DECA;color:#786334}
+.additional-fields{border-top:1px solid var(--line);margin-top:1.25rem;padding-top:.5rem}
+.additional-fields>summary{font-size:.82rem;font-weight:650;color:var(--ink);display:flex;align-items:center;gap:.5rem}
+.additional-fields>summary::before{content:'+';color:var(--primary);font-size:1.1rem}
+.additional-fields[open]>summary::before{content:'−'}
+.additional-fields>summary span{font-weight:400;color:var(--muted);font-size:.7rem;margin-left:auto}
+.blockers{font-size:.8rem;color:var(--muted);margin:0 0 .8rem;line-height:1.7}
+.save-notice{font-size:.8rem;margin:0 0 .75rem;color:var(--muted)}
+.save-notice.ready{color:var(--primary);font-weight:600}
+.save-step{background:#EFF5EB!important;border-color:#D4E1CE!important}
+.save-step .actions>.primary{flex:1}
+.save-footnote{font-size:.7rem;color:var(--muted);margin:.75rem 0 0}
+.empty{padding:1.2rem;background:#F6F8F2;border:1px dashed #DCE4D6;border-radius:12px;font-size:.85rem}
+table{font-size:.8rem}th{font-size:.7rem;color:var(--muted);background:#F4F7F1}
+th,td{padding:.75rem .65rem}
+.panel:not(#tab-consult){max-width:52rem;margin:1.5rem 0}
+.panel:not(#tab-consult) .step>h2{font-size:1.2rem;letter-spacing:-.035em;margin-bottom:.65rem}
+details.rec{border-radius:12px;padding:.7rem .9rem}
+details.rec summary{font-size:.85rem;line-height:1.6}
+.prose{font-size:.85rem}.prose h3{font-size:.85rem;margin-top:1.5rem}
+.prose li{margin:.4rem 0}
+#lock{background:#F5F6F2;padding:0 1.5rem 2rem}
+.lock-shell{max-width:68rem;margin:0 auto}
+.lock-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.6rem 0;border-bottom:1px solid var(--line)}
+.lock-top .brand{margin:0}.lock-top .brand h1{font-size:1.3rem}
+.prototype-pill{border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:.7rem;padding:.4rem .7rem;background:#fff}
+.lock-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:4rem;align-items:center;min-height:calc(100svh - 8rem);padding:3rem 0}
+.lock-story h2{font:400 3.3rem/1.09 Georgia,'Times New Roman',serif;letter-spacing:-.055em;max-width:10ch;display:block;margin:.8rem 0 1.2rem}
+.lock-story>.hint{font-size:.95rem;max-width:39ch;margin:0 0 1.8rem}
+.story-steps{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;color:var(--muted);font-size:.75rem}
+.story-steps span{background:#E7EEE1;padding:.4rem .65rem;border-radius:8px;color:#456343}
+.story-steps b{font-weight:400}
+.story-footnote{font-size:.75rem;color:var(--muted);line-height:1.7;max-width:42ch;margin:1.5rem 0 0}
+#lock .inner{width:100%;max-width:28rem;margin:0;border:1px solid #D9E2D6;background:#fff;padding:1.8rem;border-radius:22px;box-shadow:0 18px 50px #273C2210}
+#lock .inner h2{font-size:1.35rem;letter-spacing:-.035em;display:block;margin-bottom:.7rem}
+#lock .inner p{font-size:.85rem;color:var(--muted)}
+#lock .inner .warnline,#lock .inner .err{color:var(--danger);font-size:.8rem}
+#lock .actions.stack{margin-top:1.4rem;gap:.65rem}
+.welcome-tag{display:inline-block;font-size:.66rem;font-weight:700;letter-spacing:.1em;color:var(--primary);text-transform:uppercase;margin-bottom:.7rem}
+.welcome-details{margin:1.2rem 0 0;padding-top:1rem;border-top:1px solid var(--line);font-size:.75rem;color:var(--muted)}
+.welcome-details p{font-size:.75rem!important;margin:.25rem 0}
+.lock-footer{font-size:.7rem;text-align:center;color:var(--muted);margin-top:1.4rem}
+#toast{border-radius:12px;font-size:.85rem;box-shadow:0 5px 25px #20362F26;bottom:calc(1rem + env(safe-area-inset-bottom,0px))}
+:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+.btn:focus-visible{box-shadow:0 0 0 6px #176A5512}
+@media(min-width:960px){
+  .consult-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:0 1.2rem;align-items:start}
+}
+@media(max-width:959px){
+  #app{max-width:48rem}.consult-intro{padding:1.25rem 0}
+  .top-status{width:100%}.top .lock-button{margin-left:auto}
+  .lock-layout{gap:2rem}.lock-story h2{font-size:2.7rem}
+}
+@media(max-width:680px){
+  #app{padding:0 .85rem 2rem}.top{padding:1rem 0}.brand h1{font-size:1.25rem}
+  .brand-mark{width:36px;height:36px;border-radius:11px}.brand p{font-size:.6rem}
+  .top-status{gap:.35rem}.chip{font-size:.65rem;padding:.4rem .5rem}
+  nav.tabs{padding-bottom:.65rem;gap:.2rem}nav.tabs button{font-size:.78rem;padding:.55rem .7rem}
+  .consult-intro{align-items:flex-start;gap:.6rem;flex-wrap:wrap}.consult-intro h2{font-size:1.55rem}
+  .consult-intro p:not(.eyebrow){font-size:.82rem}.workflow-state{font-size:.68rem;padding:.35rem .65rem}
+  section.step{padding:1.1rem;border-radius:15px}.prototype-note{font-size:.7rem;margin-bottom:.9rem}
+  .step-heading{margin-bottom:.9rem}.step-heading p{font-size:.7rem}.step-heading h2{font-size:.95rem}
+  .pair{grid-template-columns:1fr}.save-step .actions{flex-direction:column}.save-step .actions .btn{width:100%}
+  #lock{padding:0 1rem 1.5rem}.lock-top{padding:1.2rem 0}.prototype-pill{font-size:.62rem}
+  .lock-layout{display:block;min-height:0;padding:2rem 0 0}.lock-story h2{font-size:2.65rem;max-width:15ch;margin:.65rem 0 1rem}
+  .lock-story>.hint{font-size:.85rem;margin-bottom:1rem;max-width:43ch}.story-footnote{display:none}
+  .story-steps{margin-bottom:1.5rem;font-size:.7rem}#lock .inner{padding:1.35rem;max-width:none;border-radius:18px}
+  .lock-footer{font-size:.65rem;margin-top:1.2rem}.additional-fields>summary{flex-wrap:wrap}.additional-fields>summary span{margin-left:0}
+}
+@media(prefers-reduced-motion:reduce){.btn{transition:none}}
 </style>
 </head>
 <body class="locked">
 
 <div id="lock" role="dialog" aria-modal="true" aria-labelledby="lock-title">
-  <div class="inner">
-    <h1 id="lock-title">GOLDNexus CareNote</h1>
-    <div id="lock-body"></div>
+  <div class="lock-shell">
+    <header class="lock-top">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3.5h8l3 3V20H7a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2Z"/><path d="M14 3.5v4h4M9 12h5M9 16h3"/></svg></span><div><h1 id="lock-title">CareNote</h1><p>GOLDNexus Health</p></div></div>
+      <span class="prototype-pill">Health track prototype</span>
+    </header>
+    <div class="lock-layout">
+      <section class="lock-story" aria-label="How CareNote works">
+        <p class="eyebrow">Made for the consultation</p>
+        <h2>A clear record of the conversation.</h2>
+        <p class="hint">Capture the conversation, check what was heard and save a record you have reviewed. The clinician stays in control.</p>
+        <div class="story-steps" aria-label="Workflow"><span>01 &nbsp; Listen</span><b aria-hidden="true">›</b><span>02 &nbsp; Review</span><b aria-hidden="true">›</b><span>03 &nbsp; Save</span></div>
+        <p class="story-footnote">AI drafts English speech. Twi wording and meaning are checked and entered by the clinician. Audio stays on this device during review.</p>
+      </section>
+      <div>
+        <div class="inner"><div id="lock-body"></div></div>
+        <p class="lock-footer">For fictional consultations while this prototype is being tested.</p>
+      </div>
+    </div>
   </div>
 </div>
 
 <div id="app">
   <header class="top">
-    <h1>GOLDNexus CareNote</h1>
-    <span class="chip" id="chip-model">Speech model: starting</span>
-    <span class="chip" id="chip-net">Online</span>
-    <span class="chip" id="who"></span>
-    <button class="btn small" data-action="lock-now">Lock</button>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3.5h8l3 3V20H7a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2Z"/><path d="M14 3.5v4h4M9 12h5M9 16h3"/></svg></span><div><h1>CareNote</h1><p>GOLDNexus Health</p></div></div>
+    <div class="top-status"><span class="chip" id="chip-model" role="status">English speech: starting</span>
+    <span class="chip" id="chip-net">Network: online</span>
+    <span class="chip" id="who"></span></div>
+    <button class="btn small lock-button" data-action="lock-now">Lock app</button>
   </header>
   <div id="model-progress" hidden>
     <progress id="model-bar" max="1" value="0"></progress>
@@ -160,54 +342,59 @@ dl dd{margin:0;white-space:pre-wrap}
   </div>
 
   <nav class="tabs" role="tablist" aria-label="Sections">
-    <button role="tab" aria-selected="true" data-tab="consult">Consultation</button>
-    <button role="tab" aria-selected="false" data-tab="records">Records</button>
-    <button role="tab" aria-selected="false" data-tab="glossary">Glossary</button>
-    <button role="tab" aria-selected="false" data-tab="tests">Test log</button>
-    <button role="tab" aria-selected="false" data-tab="about">About</button>
+    <button id="nav-consult" role="tab" aria-selected="true" aria-controls="tab-consult" data-tab="consult">Consultation</button>
+    <button id="nav-records" role="tab" aria-selected="false" aria-controls="tab-records" data-tab="records">Saved records</button>
+    <button id="nav-glossary" role="tab" aria-selected="false" aria-controls="tab-glossary" data-tab="glossary">Twi glossary</button>
+    <button id="nav-tests" role="tab" aria-selected="false" aria-controls="tab-tests" data-tab="tests">Evaluation log</button>
+    <button id="nav-about" role="tab" aria-selected="false" aria-controls="tab-about" data-tab="about">About</button>
   </nav>
 
   <main>
-    <div class="panel consult-grid" id="tab-consult" role="tabpanel">
+    <div class="panel consult-grid" id="tab-consult" role="tabpanel" aria-labelledby="nav-consult">
+      <div class="consult-intro"><div><p class="eyebrow">Clinician workspace</p><h2>New consultation</h2><p>Listen first. Check the draft. Save the reviewed record.</p></div><span class="workflow-state" id="workflow-state" role="status">Start with a patient reference</span></div>
+      <div class="prototype-note"><strong>Prototype:</strong> use fictional consultations. AI produces a draft; the clinician checks and approves every completed field.</div>
      <div class="col">
       <section class="step">
-        <h2><span class="n">1</span>Start</h2>
+        <div class="step-heading"><span class="step-number" aria-hidden="true">01</span><div><h2>Start the consultation</h2><p>Add a reference and confirm recording consent.</p></div></div>
         <label for="c-ref">Patient reference <span class="req">(clinic number, not a name)</span></label>
-        <input id="c-ref" autocomplete="off" spellcheck="false">
-        <fieldset>
-          <legend>Mode</legend>
-          <label class="check"><input type="radio" name="mode" value="dictation" checked> Dictation</label>
-          <label class="check"><input type="radio" name="mode" value="typing"> Typing only, for timing tests</label>
+        <input id="c-ref" autocomplete="off" spellcheck="false" placeholder="e.g. DEMO-001">
+        <fieldset class="mode-field">
+          <legend>Capture method</legend>
+          <div class="mode-options"><label class="check"><input type="radio" name="mode" value="dictation" checked> Voice and typing</label>
+          <label class="check"><input type="radio" name="mode" value="typing"> Typing only</label></div>
         </fieldset>
-        <label class="check"><input type="checkbox" id="c-consent"> The patient agreed to being recorded. Recordings stay on this device and are deleted when the record is saved.</label>
+        <div class="consent-box"><label class="check"><input type="checkbox" id="c-consent"> The patient agreed to recording. Audio stays on this device and is removed when the consultation is saved or discarded.</label></div>
       </section>
 
       <section class="step">
-        <h2><span class="n">2</span>Record the consultation</h2>
+        <div class="step-heading"><span class="step-number" aria-hidden="true">02</span><div><h2>Listen and capture</h2><p>Short clips, with full replay before review.</p></div></div>
+        <p class="language-note"><strong>English speech model.</strong> Twi wording and meaning must be entered and checked by the clinician. Twi transcription is not automatic.</p>
         <div id="patient"></div>
       </section>
      </div>
      <div class="col">
 
       <section class="step">
-        <h2><span class="n">3</span>Write the record</h2>
-        <p class="hint">Text from step 2 lands here. Use <strong>Dictate</strong> beside a field to add to it or correct it. Text has a dashed border until you confirm it, and nothing is saved until every filled field is confirmed.</p>
+        <div class="step-heading"><span class="step-number" aria-hidden="true">03</span><div><h2>Review the record</h2><p>Edit the draft and check every completed field.</p></div></div>
+        <div class="review-summary" id="review-summary" role="status"></div>
+        <p class="hint small">Replay the full clip. Check missing details, Twi meaning, numbers and negations. Mark each completed field as reviewed before saving.</p>
         <div id="fields"></div>
       </section>
 
-      <section class="step">
-        <h2><span class="n">4</span>Save</h2>
+      <section class="step save-step">
+        <div class="step-heading"><span class="step-number" aria-hidden="true">04</span><div><h2>Save the reviewed record</h2><p>Saved locally under the signed-in clinician.</p></div></div>
         <div id="save"></div>
+        <p class="save-footnote">Notes are encrypted with your PIN. Temporary audio is removed after saving.</p>
       </section>
      </div>
     </div>
 
-    <div class="panel" id="tab-records" role="tabpanel" hidden>
+    <div class="panel" id="tab-records" role="tabpanel" aria-labelledby="nav-records" hidden>
       <section class="step">
         <h2>Saved records</h2>
-        <p class="hint">Only records saved by the clinician who is signed in are shown. They are decrypted on this device with your PIN.</p>
+        <p class="hint">Your reviewed records, stored on this device and opened with your PIN.</p>
         <div id="records-list"></div>
-        <div class="actions"><button class="btn" data-action="rec-export">Export my records</button></div>
+        <details class="help"><summary>Export a readable copy</summary><p>This export is unencrypted. Use fictional records only and check where you save the file.</p><div class="actions"><button class="btn" data-action="rec-export">Export unencrypted records</button></div></details>
       </section>
       <section class="step">
         <h2>Use another device</h2>
@@ -216,10 +403,10 @@ dl dd{margin:0;white-space:pre-wrap}
       </section>
     </div>
 
-    <div class="panel" id="tab-glossary" role="tabpanel" hidden>
+    <div class="panel" id="tab-glossary" role="tabpanel" aria-labelledby="nav-glossary" hidden>
       <section class="step">
         <h2>Twi glossary</h2>
-        <p class="hint">Built from translations clinicians confirm during consultations. It contains no patient details.</p>
+        <p class="hint">Built from wording and meanings clinicians check. Store language terms only; keep names and patient details out of this unencrypted glossary.</p>
         <div id="gloss"></div>
         <div class="pair">
           <label>Twi word<input id="g-twi" autocomplete="off" spellcheck="false"></label>
@@ -232,15 +419,15 @@ dl dd{margin:0;white-space:pre-wrap}
       </section>
     </div>
 
-    <div class="panel" id="tab-tests" role="tabpanel" hidden>
+    <div class="panel" id="tab-tests" role="tabpanel" aria-labelledby="nav-tests" hidden>
       <section class="step">
         <h2>Time per record</h2>
         <p class="hint">Measured from the first recording or edit to saving. Use the same test cases in both modes for a fair comparison.</p>
         <div id="timings"></div>
       </section>
       <section class="step">
-        <h2>Twi highlighting test</h2>
-        <p class="hint">After recording a test sentence, count by ear and enter the numbers. The app shows the calculation.</p>
+        <h2>Manual Twi marking test</h2>
+        <p class="hint">This measures the clinician's marks and taps, not AI detection or transcription accuracy. Count by ear after recording a fictional test sentence.</p>
         <div id="latest-clip"></div>
         <div class="grid3">
           <label>Twi words spoken<input id="t-n" type="number" min="0" inputmode="numeric"></label>
@@ -262,7 +449,7 @@ dl dd{margin:0;white-space:pre-wrap}
       </section>
     </div>
 
-    <div class="panel" id="tab-about" role="tabpanel" hidden>
+    <div class="panel" id="tab-about" role="tabpanel" aria-labelledby="nav-about" hidden>
       <section class="step prose">
         <h2>About this prototype</h2>
         <h3>What it does</h3>
@@ -285,15 +472,15 @@ dl dd{margin:0;white-space:pre-wrap}
           <li>Records are encrypted on this device (AES-GCM, key derived from the clinician's PIN with PBKDF2, 200,000 rounds) and can only be opened with that PIN.</li>
           <li>Patient recordings are held in memory only and are deleted when the record is saved or discarded. They are never written to storage.</li>
           <li>The app locks after 3 minutes without use. Five wrong PINs trigger a 30 second wait. Switching clinician discards any unsaved consultation.</li>
-          <li>The glossary and the test log are not encrypted. They contain no patient details.</li>
-          <li>Exported files are not encrypted.</li>
+          <li>The glossary and the test log are not encrypted. Use fictional test cases and keep names and patient details out of glossary entries.</li>
+          <li>Readable record exports are unencrypted. Backup files keep note contents encrypted; their profile metadata, glossary and test logs remain readable.</li>
           <li>A 4 digit PIN has 10,000 possible combinations and could be guessed by someone who copies this device's storage. A 6 digit PIN has 1,000,000. Use 6 to 8 digits.</li>
         </ul>
         <h3>Model and data</h3>
         <ul>
-          <li>Speech model: Xenova/whisper-tiny.en, a browser version of OpenAI Whisper tiny (English only). Check the model card for its licence.</li>
-          <li>Measured download size: <span id="about-model"></span></li>
-          <li>It was not trained on Twi and is expected to make more mistakes on African-accented English than on American or British English.</li>
+          <li>Speech model: <a href="https://huggingface.co/Xenova/whisper-tiny.en" target="_blank" rel="noopener noreferrer">Xenova/whisper-tiny.en</a>, an ONNX conversion of OpenAI Whisper Tiny English. The converted model card declares Apache 2.0.</li>
+          <li>Model files reported by the loader: <span id="about-model"></span> This excludes other app and runtime assets.</li>
+          <li>Automatic Twi transcription is unsupported. Accuracy on Ghanaian English and mixed speech needs direct testing; check omissions and correction time.</li>
         </ul>
         <h3>Offline status</h3>
         <p id="about-offline"></p>
@@ -333,7 +520,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
-const mb = b => (b / 1048576).toFixed(1) + ' MB';
+const mb = b => (b / 1048576).toFixed(1) + ' MiB';
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.hidden = false;
   clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 5000);
@@ -397,18 +584,18 @@ function renderLock(mode) {
   const ps = LS.get('os.profiles', []); const box = $('#lock-body');
   const importInput = `<input type="file" id="lk-import" accept=".json,application/json" hidden>`;
   if (!mode) {
-    box.innerHTML = `<h2>Welcome</h2>
-      <p>Sign in if you already have an account on this device or a backup file from another device. Set up if you are new.</p>
+    box.innerHTML = `<span class="welcome-tag">Your clinician workspace</span><h2>Welcome to CareNote</h2>
+      <p>Open your account on this device, or set up a clinician account to get started.</p>
       <div class="actions stack">
         <button class="btn primary big" data-action="lock-signin">Sign in</button>
         <button class="btn big" data-action="lock-add">Set up a new account</button>
-      </div>`;
+      </div><div class="welcome-details"><p><strong>Using a different device?</strong> Sign in to import your encrypted backup.</p><p><strong>Language:</strong> AI drafts English. The clinician checks Twi wording and meaning.</p></div>`;
     setTimeout(() => $('[data-action=lock-signin]')?.focus(), 50);
     return;
   }
   if (mode === 'create') {
     box.innerHTML = `<h2>Set up a new account</h2>
-      <p>Each clinician has their own PIN. Records are encrypted with it, and only that clinician can open them.</p>
+      <p>Your PIN encrypts your saved records on this device. Use at least 6 digits. Someone with a copy of the storage could try to guess a short PIN.</p>
       <label for="lk-name">Your name</label><input id="lk-name" autocomplete="name">
       <label for="lk-pin">PIN, 4 to 8 digits <span class="req">(6 or more recommended)</span></label>
       <input id="lk-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="new-password">
@@ -529,7 +716,7 @@ async function askPersist() {
 function setModelState(st, detail) {
   S.modelState = st; const chip = $('#chip-model');
   chip.className = 'chip' + (st === 'ready' ? ' good' : st === 'error' ? ' bad' : '');
-  chip.textContent = st === 'ready' ? 'Speech model: ready' : st === 'error' ? 'Speech model: failed' : 'Speech model: loading';
+  chip.textContent = st === 'ready' ? 'English speech: ready' : st === 'error' ? 'English speech: unavailable' : 'English speech: loading';
   $('#model-progress').hidden = st !== 'loading';
   if (st === 'error') {
     $('#model-progress').hidden = false;
@@ -823,16 +1010,18 @@ function renderPatient() {
   let why = '';
   if (c.mode === 'typing') why = 'Typing-only mode: recording is off for this timing test.';
   else if (!c.consent) why = 'Tick the consent box in step 1 before recording.';
-  else if (!S.asr) why = 'The speech model is still loading. Recording starts working when it is ready.';
+  else if (!S.asr) why = S.modelState === 'error' ? 'The speech model is unavailable. Retry the download above or type the account.' : 'Preparing the English speech model. You can type while it loads.';
   const disabled = !!why || (R.rec && !recHere) || !!S.busy;
   box.innerHTML = `
-    <p class="hint">${why ? esc(why) : 'Start each part with its section name: <strong>Complaint</strong>, <strong>Account</strong>, <strong>Findings</strong>, <strong>Plan</strong>, <strong>Medicines</strong> or <strong>Follow-up</strong>, then pause briefly. Anything before the first section name goes into the patient\'s account. Press <strong>Mark Twi word</strong> the moment a Twi word is used.'}</p>
+    ${why ? `<p class="hint small">${esc(why)}</p>` : '<p class="hint small">Ready when you are. Record a short clip, then replay and check the draft.</p>'}
+    ${!c.clips.some(cl => !cl.discarded) && !recHere && !S.busy ? '<div class="record-empty"><div class="record-visual" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><strong>The conversation starts here</strong><p>Record up to 45 seconds at a time. You can also type directly into the record.</p></div>' : ''}
     <div class="recrow">
-      <button class="btn big ${recHere ? 'recording' : 'primary'}" data-action="rec-patient" aria-pressed="${recHere}" ${disabled && !recHere ? 'disabled' : ''}>${recHere ? 'Stop and transcribe' : 'Record'}</button>
+      <button class="btn big ${recHere ? 'recording' : 'primary'}" data-action="rec-patient" aria-pressed="${recHere}" ${disabled && !recHere ? 'disabled' : ''}>${recHere ? 'Stop and transcribe' : 'Start recording'}</button>
       ${recHere ? `<button class="btn twi big" data-action="mark-twi">Mark Twi word<span class="count" id="mark-count">${R.markers.length}</span></button>` : ''}
     </div>
     ${recHere ? '<p class="live" aria-live="polite">Recording. Clips stop by themselves after 45 seconds. On a computer you can also press T to mark a Twi word.</p>' : ''}
     ${S.busy === 'patient' ? '<p class="live" aria-live="polite">Transcribing on this device. This can take a few seconds.</p>' : ''}
+    <details class="help"><summary>How to dictate and mark Twi</summary><p>For clinician dictation, say <strong>Complaint</strong>, <strong>Account</strong>, <strong>Findings</strong>, <strong>Plan</strong>, <strong>Medicines</strong> or <strong>Follow-up</strong> to route the following text. Text before a section name goes into the patient's account. These are simple section rules.</p><p>Press <strong>Mark Twi word</strong> during recording, or tap a word in the draft. These are your annotations. The English model may omit or mishear Twi, so replay the full clip and enter the original wording and checked meaning yourself.</p></details>
     ${c.clips.map((cl, i) => clipHTML(cl, i)).join('')}`;
 }
 function clipHTML(cl, i) {
@@ -842,7 +1031,7 @@ function clipHTML(cl, i) {
   const loose = cl.markers.map((m, mi) => ({ m, mi })).filter(x => !x.m.attached && !x.m.dismissed);
   return `<article class="clip" aria-label="Recording ${i + 1}">
     <div class="cliphead"><h3>Recording ${i + 1}</h3><span class="meta">${cl.duration.toFixed(1)} s${cl.noWords ? ', no word timings' : ''}</span>
-      <span class="tag ${ro ? 'ok' : ''}">${ro ? 'Added to record' : 'Not yet added'}</span></div>
+      <span class="tag ${ro ? 'ok' : ''}">${ro ? 'Added for review' : 'Draft: check against audio'}</span></div>
     ${cl.suspect ? `<div class="warn" role="alert"><p>This text may have been invented by the speech model, which happens most on silence and long pauses. Replay the clip and check it.</p>
       <label class="check"><input type="checkbox" data-input="clip-ack" data-clip="${i}" ${cl.ack ? 'checked' : ''} ${ro ? 'disabled' : ''}> I replayed it and the text matches what was said</label></div>` : ''}
     <p class="transcript">${cl.words.length ? cl.words.map((w, wi) => `<button type="button" class="w ${w.flag ? 'flag' : ''}" data-action="word" data-clip="${i}" data-w="${wi}" aria-pressed="${!!w.flag}" ${ro ? 'disabled' : ''}>${esc(w.text)}</button>`).join(' ') : '<em>No words recognised.</em>'}</p>
@@ -865,8 +1054,8 @@ function flagRow(ci, kind, idx, title, item, src, ro) {
       <button class="btn small" data-action="${kind === 'w' ? 'word-replay' : 'mark-replay'}" data-clip="${ci}" data-idx="${idx}">Replay</button>
       ${kind === 'm' && !ro ? `<button class="btn small quiet" data-action="mark-dismiss" data-clip="${ci}" data-idx="${idx}">Dismiss mark</button>` : ''}</div>
     <div class="pair">
-      <label>Twi word<input list="gloss-twi" data-input="flag" data-kind="${kind}" data-key="twi" data-clip="${ci}" data-idx="${idx}" value="${esc(item.twi)}" ${d} autocomplete="off" spellcheck="false"></label>
-      <label>English meaning<input data-input="flag" data-kind="${kind}" data-key="en" data-clip="${ci}" data-idx="${idx}" value="${esc(item.en)}" ${d} autocomplete="off"></label>
+      <label>Twi wording <span class="req">(clinician entered)</span><input list="gloss-twi" data-input="flag" data-kind="${kind}" data-key="twi" data-clip="${ci}" data-idx="${idx}" value="${esc(item.twi)}" ${d} autocomplete="off" spellcheck="false"></label>
+      <label>Checked English meaning<input data-input="flag" data-kind="${kind}" data-key="en" data-clip="${ci}" data-idx="${idx}" value="${esc(item.en)}" ${d} autocomplete="off"></label>
     </div></div>`;
 }
 function checkTokens(t) {
@@ -878,11 +1067,12 @@ function fieldMeta(fid) {
   return `${S.busy === 'field:' + fid ? '<p class="live">Transcribing on this device.</p>' : ''}
     ${st.warn ? '<p class="warnline">Check this text: the speech model may have invented part of it.</p>' : ''}
     ${nums.length ? `<p class="checkline">Check numbers and doses against what was said: ${nums.map(n => `<mark>${esc(n)}</mark>`).join(' ')}</p>` : ''}
-    <button class="btn small ${st.confirmed ? 'ok' : ''}" data-action="field-confirm" data-f="${fid}" aria-pressed="${st.confirmed}" ${st.text.trim() ? '' : 'disabled'}>${st.confirmed ? 'Confirmed' : 'Confirm this text'}</button>`;
+    <div class="field-status"><button class="btn small ${st.confirmed ? 'ok' : ''}" data-action="field-confirm" data-f="${fid}" aria-pressed="${st.confirmed}" ${st.text.trim() ? '' : 'disabled'}>${st.confirmed ? 'Reviewed' : 'Mark as reviewed'}</button></div>`;
 }
 function renderFields() {
   const c = S.consult;
-  $('#fields').innerHTML = FIELDS.map(f => {
+  const wasOpen = $('#additional-fields')?.open;
+  const fieldHTML = f => {
     const st = c.fields[f.id], recHere = R.target === 'field:' + f.id;
     const canDictate = c.mode === 'dictation';
     const dis = !S.asr || (R.rec && !recHere) || (!!S.busy && !recHere);
@@ -890,14 +1080,25 @@ function renderFields() {
       <div class="fieldhead"><label for="ta-${f.id}">${f.label}${f.req ? ' <span class="req">(required)</span>' : ''}</label>
       ${canDictate ? `<button class="btn small ${recHere ? 'recording' : ''}" data-action="field-dictate" data-f="${f.id}" aria-pressed="${recHere}" ${dis ? 'disabled' : ''}>${recHere ? 'Stop dictating' : 'Dictate'}</button>` : ''}</div>
       ${f.hint ? `<p class="hint small">${f.hint}</p>` : ''}
-      <textarea id="ta-${f.id}" data-input="field" data-f="${f.id}" rows="3" class="${st.confirmed ? '' : 'unconfirmed'}">${esc(st.text)}</textarea>
+      <textarea id="ta-${f.id}" data-input="field" data-f="${f.id}" rows="${f.id === 'account' ? '5' : '3'}" placeholder="${f.id === 'complaint' ? 'Main reason for the consultation' : f.id === 'account' ? 'The patient’s account, including checked Twi meaning' : 'Add clinician notes if needed'}" class="${st.confirmed ? '' : 'unconfirmed'}">${esc(st.text)}</textarea>
       <div id="meta-${f.id}">${fieldMeta(f.id)}</div></div>`;
-  }).join('');
+  };
+  const extra = FIELDS.slice(2), populated = extra.filter(f => c.fields[f.id].text.trim()).length;
+  $('#fields').innerHTML = FIELDS.slice(0, 2).map(fieldHTML).join('') + `<details class="additional-fields" id="additional-fields" ${wasOpen || populated ? 'open' : ''}><summary>Additional clinician notes <span>Findings, plan, medicines and follow-up</span></summary>${extra.map(fieldHTML).join('')}</details>`;
+  renderReviewSummary();
+}
+function renderReviewSummary() {
+  const c = S.consult, filled = FIELDS.filter(f => c.fields[f.id].text.trim());
+  const reviewed = filled.filter(f => c.fields[f.id].confirmed).length;
+  const pending = filled.length - reviewed;
+  $('#review-summary').innerHTML = `<span>${reviewed} of ${filled.length} completed fields reviewed</span>${pending ? `<span class="pending">${pending} awaiting review</span>` : ''}`;
+  $('#workflow-state').textContent = !c.patientRef.trim() ? 'Add a patient reference' : R.rec ? 'Recording in progress' : S.busy ? 'Preparing the draft' : pending ? `${pending} field${pending === 1 ? '' : 's'} to review` : !c.fields.complaint.text.trim() ? 'Add the presenting complaint' : consultBlockers().length ? 'Check the remaining steps' : 'Ready to save';
 }
 function renderSave() {
   const b = consultBlockers();
-  $('#save').innerHTML = `${b.length ? `<ul class="blockers">${b.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="hint">Ready to save. The record is encrypted on this device and every recording is deleted.</p>'}
-    <div class="actions"><button class="btn primary big" data-action="consult-save" ${b.length ? 'aria-disabled="true"' : ''}>Save record</button>
+  renderReviewSummary();
+  $('#save').innerHTML = `${b.length ? `<p class="save-notice">Complete these steps before saving:</p><ul class="blockers">${b.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="save-notice ready">All completed fields reviewed. Ready to save.</p>'}
+    <div class="actions"><button class="btn primary big" data-action="consult-save" ${b.length ? 'disabled aria-disabled="true"' : ''}>Save reviewed record</button>
     <button class="btn quiet" data-action="consult-discard">Discard consultation</button></div>`;
 }
 
@@ -962,8 +1163,8 @@ function renderTests() {
 /* ---------- about ---------- */
 function renderAbout() {
   const m = LS.get('os.modelBytes', null);
-  $('#about-model').textContent = m ? `${mb(m.bytes)} across ${Object.keys(m.files).length} files, measured on ${new Date(m.at).toLocaleDateString()}.` : 'not measured yet. It is recorded the first time the model downloads.';
-  $('#about-offline').textContent = `${navigator.serviceWorker?.controller ? 'Offline cache is active.' : 'Offline cache is not active yet. Reload the page once while online.'} ${S.asr ? 'The speech model is loaded.' : 'The speech model is not loaded.'} ${S.persisted ? 'The browser has agreed not to clear this app\'s data automatically.' : 'The browser has not promised to keep this app\'s data, so save a backup file regularly.'}`;
+  $('#about-model').textContent = m ? `${mb(m.bytes)} across ${Object.keys(m.files).length} files, reported on ${new Date(m.at).toLocaleDateString()}.` : 'not recorded yet. Available when the loader reports file sizes.';
+  $('#about-offline').textContent = `${navigator.serviceWorker?.controller ? 'The app cache is active.' : 'The app cache is not active yet. Reload the page once while online.'} ${S.asr ? 'The speech model is loaded.' : 'The speech model is not loaded.'} These indicators do not verify offline transcription: test fresh speech after closing and reopening in airplane mode. ${S.persisted ? 'The browser has granted persistent storage; keep a separate backup for device loss.' : 'The browser has not granted persistent storage, so save a backup file regularly.'}`;
 }
 
 /* ---------- tabs and network ---------- */
@@ -975,7 +1176,7 @@ function showTab(name) {
   if (name === 'tests') renderTests();
   if (name === 'about') renderAbout();
 }
-function updateNet() { const on = navigator.onLine, c = $('#chip-net'); c.textContent = on ? 'Online' : 'Offline'; c.className = 'chip' + (on ? '' : ' good'); }
+function updateNet() { const on = navigator.onLine, c = $('#chip-net'); c.textContent = on ? 'Network: online' : 'Network: offline'; c.className = 'chip'; }
 addEventListener('online', updateNet); addEventListener('offline', updateNet);
 
 /* ---------- events ---------- */
