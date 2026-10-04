@@ -358,6 +358,28 @@ nav.tabs button[aria-current=page]{background:#E3EDE5;color:var(--primary);box-s
 .lock-story h2{max-width:15ch;font-size:clamp(2.25rem,4vw,3.2rem)}
 .story-steps,.story-footnote{font-size:.875rem}
 @media(max-width:680px){.lock-story h2{font-size:2.25rem;max-width:16ch}.lock-story>.hint{font-size:.9375rem}.story-steps{font-size:.875rem}.consult-intro h2{font-size:1.35rem}}
+.menu-toggle{display:grid;place-items:center;min-width:44px;padding:.5rem;flex:none;background:#fff}
+.menu-toggle svg{width:23px;height:23px}
+.workspace-header{position:sticky;top:0;z-index:10;background:var(--bg);padding-bottom:.2rem}
+.top>.brand{margin-right:auto}
+.connection-banner{display:flex;align-items:center;gap:.75rem;padding:.7rem .85rem;border:1px solid #C7DACA;border-radius:12px;background:#EEF5ED;margin:.65rem 0 .25rem}
+.connection-banner.offline{background:#E2F1E6;border-color:#89B798}
+.connection-banner.online{background:#F1F4F0;border-color:var(--line)}
+.connection-banner .chip{font-size:1rem;font-weight:750;border:0;background:none;padding:0;white-space:nowrap;color:#205D47}
+.connection-banner .chip::before{content:'';display:inline-block;width:9px;height:9px;border-radius:50%;background:currentColor;margin-right:.45rem}
+.connection-detail{font-size:.875rem;color:var(--muted);margin:0;line-height:1.4}
+.side-menu{position:fixed;inset:0 auto 0 0;margin:0;width:min(21rem,88vw);height:100dvh;max-height:100dvh;max-width:88vw;border:0;border-right:1px solid var(--line);background:#F7F9F4;color:var(--ink);padding:1.25rem;box-shadow:8px 0 35px #20362F25;overflow:auto}
+.side-menu::backdrop{background:#14282066}
+.side-menu-head{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem}
+.side-menu-head h2{margin:0;font-size:1.2rem}
+.side-menu .menu-links{display:grid;gap:.4rem;margin:1rem 0}
+.menu-links button{text-align:left;width:100%;background:#fff;border-color:var(--line);font-size:1rem}
+.menu-links button[aria-current=page]{background:#E3EDE5;border-color:#AECBB4;color:var(--primary)}
+.menu-account{padding:.6rem 0;border-bottom:1px solid var(--line);font-size:.875rem;color:var(--muted)}
+.menu-account #who{display:block;font-size:1rem;color:var(--ink);font-weight:650;background:none;border:0;padding:0}
+.menu-footer{border-top:1px solid var(--line);padding-top:1rem}
+.menu-footer button{width:100%}
+@media(max-width:680px){.connection-banner{padding:.65rem;gap:.6rem}.top #chip-model{font-size:.875rem}}
 </style>
 </head>
 <body class="locked">
@@ -383,25 +405,31 @@ nav.tabs button[aria-current=page]{background:#E3EDE5;color:var(--primary);box-s
 </div>
 
 <div id="app">
+  <div class="workspace-header">
   <header class="top">
+    <button class="btn menu-toggle" id="menu-toggle" data-action="menu-open" aria-label="Open navigation menu" aria-controls="side-menu" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
     <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3.5h8l3 3V20H7a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2Z"/><path d="M14 3.5v4h4M9 12h5M9 16h3"/></svg></span><div><h1>CareNote</h1><p>GOLDNexus Health</p></div></div>
-    <details class="status-menu"><summary aria-label="Speech, network and clinician status"><span class="chip" id="chip-model" role="status">Speech loading</span></summary><div class="status-popover"><p>Connection and clinician</p><span class="chip" id="chip-net">Network: online</span><span class="chip" id="who"></span></div></details>
-    <button class="btn small lock-button" data-action="lock-now" aria-label="Lock CareNote">Lock</button>
+    <span class="chip" id="chip-model" role="status">Speech loading</span>
   </header>
+  <div class="connection-banner" id="connection-banner" role="status" aria-live="polite"><span class="chip" id="chip-net">Online</span><p class="connection-detail" id="connection-detail">Checking speech availability.</p></div>
+  </div>
   <div id="model-progress" hidden>
     <progress id="model-bar" max="1" value="0"></progress>
     <p class="hint small" id="model-label" aria-live="polite"></p>
   </div>
 
-  <nav class="tabs" aria-label="CareNote navigation">
-    <button id="nav-consult" aria-current="page" aria-controls="tab-consult" data-tab="consult">Consultation</button>
-    <button id="nav-records" aria-controls="tab-records" data-tab="records">Records</button>
-    <button id="nav-glossary" aria-controls="tab-glossary" data-tab="glossary">Twi terms</button>
-    <details class="more-nav" id="more-menu"><summary>More</summary><div class="more-options">
-      <button id="nav-tests" aria-controls="tab-tests" data-tab="tests">Evaluation log</button>
-      <button id="nav-about" aria-controls="tab-about" data-tab="about">About and help</button>
-    </div></details>
-  </nav>
+  <dialog class="side-menu" id="side-menu" aria-labelledby="menu-title">
+    <div class="side-menu-head"><h2 id="menu-title">CareNote menu</h2><button class="btn small" id="menu-close" data-action="menu-close" aria-label="Close navigation menu">Close</button></div>
+    <div class="menu-account">Clinician<span id="who"></span></div>
+    <nav class="menu-links" aria-label="CareNote navigation">
+    <button class="btn" id="nav-consult" aria-current="page" aria-controls="tab-consult" data-tab="consult">Consultation</button>
+    <button class="btn" id="nav-records" aria-controls="tab-records" data-tab="records">Records</button>
+    <button class="btn" id="nav-glossary" aria-controls="tab-glossary" data-tab="glossary">Twi terms</button>
+      <button class="btn" id="nav-tests" aria-controls="tab-tests" data-tab="tests">Evaluation log</button>
+      <button class="btn" id="nav-about" aria-controls="tab-about" data-tab="about">About and help</button>
+    </nav>
+    <div class="menu-footer"><button class="btn" data-action="lock-now">Lock private workspace</button><p class="hint">Saved records stay protected by your clinician PIN.</p></div>
+  </dialog>
 
   <main>
     <div class="panel consult-grid" id="tab-consult" role="region" aria-labelledby="nav-consult">
@@ -635,6 +663,7 @@ const R = { rec: null, stream: null, chunks: [], t0: 0, markers: [], target: nul
 
 /* ---------- lock and profiles ---------- */
 function setLocked(on) {
+  if (on) closeMenu(false);
   document.body.classList.toggle('locked', on);
   $('#app').inert = on; $('#lock').hidden = !on;
 }
@@ -782,6 +811,7 @@ function setModelState(st, detail) {
   S.modelState = st; const chip = $('#chip-model');
   chip.className = 'chip' + (st === 'ready' ? ' good' : st === 'error' ? ' bad' : '');
   chip.textContent = st === 'ready' ? 'Speech ready' : st === 'error' ? 'Speech off' : 'Speech loading';
+  updateNet();
   $('#model-progress').hidden = st !== 'loading';
   if (st === 'error') {
     $('#model-progress').hidden = false;
@@ -1461,22 +1491,44 @@ function renderAbout() {
 }
 
 /* ---------- tabs and network ---------- */
+function openMenu() {
+  if (!S.key) return;
+  const menu = $('#side-menu');
+  if (!menu.open) menu.showModal();
+  $('#menu-toggle').setAttribute('aria-expanded', 'true');
+  $('#menu-close').focus();
+}
+function closeMenu(restoreFocus = true) {
+  const menu = $('#side-menu'), wasOpen = !!menu?.open;
+  if (wasOpen) menu.close();
+  $('#menu-toggle')?.setAttribute('aria-expanded', 'false');
+  if (wasOpen && restoreFocus) $('#menu-toggle').focus();
+}
 function showTab(name) {
   $$('[data-tab]').forEach(b => { if (b.dataset.tab === name) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   $$('.panel').forEach(p => { p.hidden = p.id !== 'tab-' + name; });
-  $('#more-menu').classList.toggle('active', name === 'tests' || name === 'about');
-  $('#more-menu').open = false;
+  closeMenu();
   if (name === 'records') refreshRecords();
   if (name === 'glossary') renderGloss();
   if (name === 'tests') renderTests();
   if (name === 'about') renderAbout();
 }
-function updateNet() { const on = navigator.onLine, c = $('#chip-net'); c.textContent = on ? 'Network: online' : 'Network: offline'; c.className = 'chip'; }
+function updateNet() {
+  const on = navigator.onLine;
+  $('#chip-net').textContent = on ? 'Online' : 'Offline';
+  $('#chip-net').className = 'chip';
+  $('#connection-banner').className = 'connection-banner ' + (on ? 'online' : 'offline');
+  $('#connection-detail').textContent = S.asr ? 'Speech model loaded on this device.' : S.modelState === 'error' ? 'Speech unavailable. You can still type notes.' : on ? 'Preparing speech. You can type notes now.' : 'Connect once to load speech, or type notes.';
+}
 addEventListener('online', updateNet); addEventListener('offline', updateNet);
 
 /* ---------- events ---------- */
 const clipOf = el => S.consult.clips[+el.dataset.clip];
 document.addEventListener('click', async e => {
+  if (e.target.id === 'side-menu') {
+    const r = e.target.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) { closeMenu(); return; }
+  }
   const tab = e.target.closest('[data-tab]'); if (tab) return showTab(tab.dataset.tab);
   const b = e.target.closest('[data-action]'); if (!b || b.disabled) return;
   const a = b.dataset.action;
@@ -1490,6 +1542,8 @@ document.addEventListener('click', async e => {
     case 'lock-import': { const f = $('#lk-import'); if (f) f.click(); return; }
     case 'backup-export': return exportBackup();
     case 'lock-now': return lockNow();
+    case 'menu-open': return openMenu();
+    case 'menu-close': return closeMenu();
     case 'model-retry': return loadModel();
     case 'review-record': $('#review-panel').open = true; $('#review-panel').scrollIntoView?.({ block: 'start', behavior: 'smooth' }); return;
     case 'rec-patient':
@@ -1593,11 +1647,15 @@ document.addEventListener('click', async e => {
   }
 });
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('#side-menu').open) { e.preventDefault(); closeMenu(); return; }
   if (R.target === 'patient' && (e.key === 't' || e.key === 'T') && !e.target.matches('input, textarea, select')) {
     e.preventDefault(); recMark(); const c = $('#mark-count'); if (c) c.textContent = R.markers.length; return;
   }
   if (e.key === 'Enter' && e.target.closest('#lock-body') && e.target.matches('input')) { e.preventDefault(); ($('[data-action=lock-unlock]') || $('[data-action=lock-create]')).click(); }
 });
+document.addEventListener('cancel', e => {
+  if (e.target.id === 'side-menu') { e.preventDefault(); closeMenu(); }
+}, true);
 document.addEventListener('input', e => {
   const t = e.target, k = t.dataset.input;
   if (!S.consult) return;
