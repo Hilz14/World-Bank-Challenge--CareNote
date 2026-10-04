@@ -332,6 +332,32 @@ details.rec summary{font-size:.875rem;line-height:1.6}
 }
 @media(min-width:681px) and (hover:hover) and (pointer:fine){.desktop-shortcut{display:block}}
 @media(prefers-reduced-motion:reduce){.btn{transition:none}}
+/* Clinician workspace: a clear purpose and three primary steps. */
+nav.tabs{grid-template-columns:1.35fr .95fr 1fr .7fr;align-items:start}
+nav.tabs button[aria-current=page]{background:#E3EDE5;color:var(--primary);box-shadow:inset 0 0 0 1px #D3DFD5}
+.more-nav{position:relative;font-size:.875rem}
+.more-nav>summary{display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:10px;color:var(--muted);font-weight:600;list-style:none;cursor:pointer}
+.more-nav>summary::-webkit-details-marker{display:none}
+.more-nav>summary::after{content:'⌄';margin-left:.3rem}
+.more-nav[open]>summary,.more-nav.active>summary{background:#E3EDE5;color:var(--primary)}
+.more-options{position:absolute;right:0;top:100%;min-width:11rem;padding:.4rem;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 25px #20362F18;z-index:12}
+.more-options button{display:block;width:100%;text-align:left;padding:.65rem!important}
+.consult-intro{display:block;padding:.9rem 0}
+.consult-intro .purpose{font-size:.9375rem;color:var(--muted);margin:.35rem 0 .6rem;max-width:55ch}
+.next-step{display:flex;flex-wrap:wrap;gap:.3rem;font-size:.875rem;color:var(--primary);margin:0}
+.next-step strong{font-weight:650}
+.section-cues{gap:.25rem;font-size:.875rem}
+.section-cues-label{font-size:.875rem}
+.added-clip{margin-top:.75rem;border:1px solid var(--line);border-radius:10px;background:#F3F7F0;padding:.2rem .7rem}
+.added-clip>summary{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-size:.875rem;font-weight:600;color:var(--primary)}
+.added-clip>summary::after{content:'View';font-weight:400;color:var(--muted)}
+.added-clip[open]>summary::after{content:'Close'}
+.draft-destination{margin:.5rem 0;font-size:.875rem;color:var(--muted)}
+.draft-destination>summary{font-size:.875rem;min-height:36px}
+.save-heading{display:block;font-size:1rem;margin-bottom:.6rem}
+.lock-story h2{max-width:15ch;font-size:clamp(2.25rem,4vw,3.2rem)}
+.story-steps,.story-footnote{font-size:.875rem}
+@media(max-width:680px){.lock-story h2{font-size:2.25rem;max-width:16ch}.lock-story>.hint{font-size:.9375rem}.story-steps{font-size:.875rem}.consult-intro h2{font-size:1.35rem}}
 </style>
 </head>
 <body class="locked">
@@ -343,9 +369,9 @@ details.rec summary{font-size:.875rem;line-height:1.6}
     </header>
     <div class="lock-layout">
       <section class="lock-story" aria-label="How CareNote works">
-        <p class="eyebrow">For your clinical workflow</p>
-        <h2>Clinical notes, reviewed by you.</h2>
-        <p class="hint">Record the patient’s account or dictate your notes. Review the transcript, verify clinical details and approve the record before saving.</p>
+        <p class="eyebrow">Voice documentation for clinicians</p>
+        <h2>Turn speech into clinical notes.</h2>
+        <p class="hint">Record the patient’s account or dictate your findings. CareNote drafts English speech into text. You check the wording, add any Twi meaning and save the reviewed note.</p>
         <div class="story-steps" aria-label="Workflow"><span>01 &nbsp; Record</span><b aria-hidden="true">›</b><span>02 &nbsp; Review</span><b aria-hidden="true">›</b><span>03 &nbsp; Save</span></div>
         <p class="story-footnote">Saved notes are encrypted on this device. Consultation audio is deleted when you save or discard the record.</p>
       </section>
@@ -367,46 +393,48 @@ details.rec summary{font-size:.875rem;line-height:1.6}
     <p class="hint small" id="model-label" aria-live="polite"></p>
   </div>
 
-  <nav class="tabs" role="tablist" aria-label="Sections">
-    <button id="nav-consult" role="tab" aria-selected="true" aria-controls="tab-consult" data-tab="consult">Consult</button>
-    <button id="nav-records" role="tab" aria-selected="false" aria-controls="tab-records" data-tab="records">Records</button>
-    <button id="nav-glossary" role="tab" aria-selected="false" aria-controls="tab-glossary" data-tab="glossary">Glossary</button>
-    <button id="nav-tests" role="tab" aria-selected="false" aria-controls="tab-tests" data-tab="tests">Tests</button>
-    <button id="nav-about" role="tab" aria-selected="false" aria-controls="tab-about" data-tab="about">About</button>
+  <nav class="tabs" aria-label="CareNote navigation">
+    <button id="nav-consult" aria-current="page" aria-controls="tab-consult" data-tab="consult">Consultation</button>
+    <button id="nav-records" aria-controls="tab-records" data-tab="records">Records</button>
+    <button id="nav-glossary" aria-controls="tab-glossary" data-tab="glossary">Twi terms</button>
+    <details class="more-nav" id="more-menu"><summary>More</summary><div class="more-options">
+      <button id="nav-tests" aria-controls="tab-tests" data-tab="tests">Evaluation log</button>
+      <button id="nav-about" aria-controls="tab-about" data-tab="about">About and help</button>
+    </div></details>
   </nav>
 
   <main>
-    <div class="panel consult-grid" id="tab-consult" role="tabpanel" aria-labelledby="nav-consult">
-      <div class="consult-intro"><h2>New consultation</h2><span class="workflow-state" id="workflow-state" role="status">Add a patient reference</span></div>
+    <div class="panel consult-grid" id="tab-consult" role="region" aria-labelledby="nav-consult">
+      <div class="consult-intro"><h2>Create a clinical note</h2><p class="purpose">Record speech, check the draft and save a reviewed patient record.</p><p class="next-step"><strong>Next:</strong> <span class="workflow-state" id="workflow-state" role="status">Add a patient reference</span></p></div>
      <div class="col">
       <section class="step">
-        <div class="step-heading"><span class="step-number" aria-hidden="true">01</span><h2>Start the consultation</h2></div>
+        <div class="step-heading"><span class="step-number" aria-hidden="true">01</span><h2>Patient details</h2></div>
         <label for="c-ref">Patient reference <span class="req">(clinic number)</span></label>
-        <input id="c-ref" autocomplete="off" spellcheck="false" placeholder="e.g. DEMO-001">
+        <input id="c-ref" autocomplete="off" spellcheck="false" placeholder="Clinic number or patient ID">
         <fieldset class="mode-field">
-          <legend>Capture method</legend>
-          <div class="mode-options"><label class="check"><input type="radio" name="mode" value="dictation" checked> Voice and typing</label>
-          <label class="check"><input type="radio" name="mode" value="typing"> Typing only</label></div>
+          <legend>How would you like to write this note?</legend>
+          <div class="mode-options"><label class="check"><input type="radio" name="mode" value="dictation" checked> Record or dictate</label>
+          <label class="check"><input type="radio" name="mode" value="typing"> Type notes</label></div>
         </fieldset>
-        <div class="consent-box"><label class="check"><input type="checkbox" id="c-consent"> The patient agreed to recording.</label></div>
+        <div class="consent-box" id="consent-box"><label class="check"><input type="checkbox" id="c-consent"> Patient consent obtained for this recording.</label></div>
       </section>
 
       <section class="step" id="capture-step">
-        <div class="step-heading"><span class="step-number" aria-hidden="true">02</span><h2>Listen and capture</h2></div>
+        <div class="step-heading"><span class="step-number" aria-hidden="true">02</span><div><h2>Record and check the draft</h2><p>Record the patient’s account, or dictate your notes.</p></div></div>
         <div id="patient"></div>
       </section>
      </div>
      <details class="review-panel" id="review-panel">
-      <summary><h2 class="step-heading"><span class="step-number" aria-hidden="true">03</span><span>Review the record<span class="review-panel-status" id="review-panel-status">Type or review notes</span></span></h2></summary>
+      <summary><h2 class="step-heading"><span class="step-number" id="review-step-number" aria-hidden="true">03</span><span>Review and save the note<span class="review-panel-status" id="review-panel-status">Type or review notes</span></span></h2></summary>
       <div class="review-content">
       <section class="step review-step">
         <div class="review-summary" id="review-summary" role="status" hidden></div>
-        <p class="hint small">Check the account, numbers and negations. Mark each completed field as reviewed.</p>
+        <p class="hint small">Edit the note, check clinical details and mark each completed section as reviewed.</p>
         <div id="fields"></div>
       </section>
 
       <section class="step save-step">
-        <div class="step-heading"><span class="step-number" aria-hidden="true">04</span><div><h2>Save the reviewed record</h2><p>Saved locally under the signed-in clinician.</p></div></div>
+        <h2 class="save-heading">Save the patient record</h2>
         <div id="save"></div>
         <p class="save-footnote">Notes are encrypted with your PIN. Temporary audio is removed after saving.</p>
       </section>
@@ -414,7 +442,7 @@ details.rec summary{font-size:.875rem;line-height:1.6}
      </details>
     </div>
 
-    <div class="panel" id="tab-records" role="tabpanel" aria-labelledby="nav-records" hidden>
+    <div class="panel" id="tab-records" role="region" aria-labelledby="nav-records" hidden>
       <section class="step">
         <h2>Saved records</h2>
         <p class="hint">Your reviewed records, stored on this device and opened with your PIN.</p>
@@ -428,7 +456,7 @@ details.rec summary{font-size:.875rem;line-height:1.6}
       </section>
     </div>
 
-    <div class="panel" id="tab-glossary" role="tabpanel" aria-labelledby="nav-glossary" hidden>
+    <div class="panel" id="tab-glossary" role="region" aria-labelledby="nav-glossary" hidden>
       <section class="step">
         <h2>Twi glossary</h2>
         <p class="hint">Built from wording and meanings clinicians check. Store language terms only; keep names and patient details out of this unencrypted glossary.</p>
@@ -446,7 +474,7 @@ details.rec summary{font-size:.875rem;line-height:1.6}
       </section>
     </div>
 
-    <div class="panel" id="tab-tests" role="tabpanel" aria-labelledby="nav-tests" hidden>
+    <div class="panel" id="tab-tests" role="region" aria-labelledby="nav-tests" hidden>
       <section class="step">
         <h2>Time per record</h2>
         <p class="hint">Measured from the first recording or edit to saving. Use the same test cases in both modes for a fair comparison.</p>
@@ -476,7 +504,7 @@ details.rec summary{font-size:.875rem;line-height:1.6}
       </section>
     </div>
 
-    <div class="panel" id="tab-about" role="tabpanel" aria-labelledby="nav-about" hidden>
+    <div class="panel" id="tab-about" role="region" aria-labelledby="nav-about" hidden>
       <section class="step prose">
         <h2>About CareNote</h2>
         <p>Clinical validation has not been completed. Use fictional records for testing.</p>
@@ -615,13 +643,12 @@ function renderLock(mode) {
   const ps = LS.get('os.profiles', []); const box = $('#lock-body');
   const importInput = `<input type="file" id="lk-import" accept=".json,application/json" hidden>`;
   if (!mode) {
-    box.innerHTML = `<span class="welcome-tag">Your clinician workspace</span><h2>Welcome to CareNote</h2>
-      <p>Open your account on this device, or set up a clinician account to get started.</p>
+    box.innerHTML = `<h2>${ps.length ? 'Open your records' : 'Get started with CareNote'}</h2>
+      <p>${ps.length ? 'Sign in with your clinician PIN to open records saved on this device.' : 'Create a clinician account and choose a PIN to protect your saved notes.'}</p>
       <div class="actions stack">
-        <button class="btn primary big" data-action="lock-signin">Sign in</button>
-        <button class="btn big" data-action="lock-add">Set up a new account</button>
-      </div><div class="welcome-details"><p><strong>Using a different device?</strong> Sign in to import your encrypted backup.</p></div>`;
-    setTimeout(() => $('[data-action=lock-signin]')?.focus(), 50);
+        ${ps.length ? '<button class="btn primary big" data-action="lock-signin">Sign in with PIN</button><button class="btn quiet" data-action="lock-add">Add clinician account</button>' : '<button class="btn primary big" data-action="lock-add">Create clinician account</button>'}
+      </div><details class="help"><summary>Bring records from another device</summary><p>Import an encrypted CareNote backup, then sign in with its original PIN.</p><button class="btn" data-action="lock-import">Import backup</button></details>${importInput}`;
+    setTimeout(() => $(ps.length ? '[data-action=lock-signin]' : '[data-action=lock-add]')?.focus(), 50);
     return;
   }
   if (mode === 'create') {
@@ -1180,10 +1207,12 @@ function renderAll() {
 function renderPatient() {
   const c = S.consult, box = $('#patient'), recHere = !!R.rec && R.target === 'patient';
   $('#capture-step').hidden = c.mode === 'typing';
+  $('#consent-box').hidden = c.mode === 'typing';
+  $('#review-step-number').textContent = c.mode === 'typing' ? '02' : '03';
   let why = '';
-  if (c.mode === 'typing') why = 'Typing-only mode: recording is off for this timing test.';
+  if (c.mode === 'typing') why = 'Typing-only mode: write your note in the sections below.';
   else if (!c.consent) why = 'Tick the consent box in step 1 before recording.';
-  else if (!S.asr) why = S.modelState === 'error' ? 'Speech is unavailable. Retry above or choose Typing only.' : 'Loading speech. You can choose Typing only while it loads.';
+  else if (!S.asr) why = S.modelState === 'error' ? 'Speech is unavailable. Retry above or choose Type notes.' : 'Loading speech. Choose Type notes to start writing now.';
   const disabled = !!why || (R.rec && !recHere) || !!S.busy;
   box.innerHTML = `
     <div class="record-controls">
@@ -1193,14 +1222,20 @@ function renderPatient() {
       <p class="desktop-shortcut">You can also press <kbd>T</kbd> to mark a Twi word.</p>` : `<button class="btn primary big" data-action="rec-patient" aria-pressed="false" ${disabled ? 'disabled' : ''}>Start recording</button>`}
     </div>
     ${!recHere && !S.busy && why ? `<p class="hint small">${esc(why)}</p>` : ''}
-    ${c.mode !== 'typing' ? '<div class="section-cues" aria-label="Spoken section names"><strong class="section-cues-label">Say a section name to organise the note:</strong><span>Complaint</span><span>Account</span><span>Findings</span><span>Plan</span><span>Medicines</span><span>Follow-up</span></div>' : ''}
+    ${c.mode !== 'typing' && !recHere && !S.busy ? '<div class="section-cues" aria-label="Spoken section names"><strong class="section-cues-label">Optional: say a section name to organise your note.</strong><span>Complaint</span><span>Account</span><span>Findings</span><span>Plan</span><span>Medicines</span><span>Follow-up</span></div>' : ''}
     ${S.busy === 'patient' ? '<p class="live" aria-live="polite">Transcribing this recording on your device. Please wait.</p>' : ''}
-    <p class="language-note"><strong>AI drafts English.</strong> Mark and replay Twi, then enter the checked meaning. Audio stays on this device and is removed on save or discard.</p>
+    ${!recHere && !S.busy ? '<p class="language-note"><strong>AI drafts English.</strong> You check the wording and enter any Twi meaning.</p>' : ''}
     <details class="help"><summary>Dictation help</summary><p>Start a clip with a section name, followed by its text. Text without a section name goes into the patient's account. Section routing uses simple rules.</p><p>Words labelled <strong>Check</strong> need review. Replay each one, correct the wording if needed and confirm it. A word without a flag can still be wrong; check the full draft.</p><p>Press <strong>Mark Twi word</strong> while recording. After transcription, tap an unflagged word to mark Twi or choose <strong>Mark as Twi</strong> within its review controls. Replay the marked moment, enter the wording and meaning, and check the full clip. Dictation from a record field uses the same review step before being added to that field.</p></details>
     ${c.clips.map((cl, i) => clipHTML(cl, i)).join('')}`;
 }
 function clipHTML(cl, i) {
   if (cl.discarded) return '';
+  if (cl.inserted) {
+    const routes = clipRouting(cl, false);
+    return `<details class="added-clip" id="clip-${cl.id}"><summary>Recording ${i + 1} added to the note</summary>
+      <div class="route"><ul>${routes.map(r => `<li><strong>${FIELDS.find(f => f.id === r.field).label}:</strong> ${esc(r.text)}</li>`).join('')}</ul></div>
+      <div class="actions"><button class="btn small" data-action="clip-replay" data-clip="${i}" ${cl.pcm ? '' : 'disabled'}>Replay recording</button><button class="btn small primary" data-action="review-record">Review the note</button></div></details>`;
+  }
   const ro = cl.inserted;
   const flagged = cl.words.map((w, wi) => ({ w, wi })).filter(x => x.w.flag);
   const uncertain = cl.words.map((w, wi) => ({ w, wi })).filter(x => x.w.needsReview && !x.w.flag);
@@ -1214,14 +1249,14 @@ function clipHTML(cl, i) {
     <p class="transcript">${cl.words.length ? cl.words.map((w, wi) => `<button type="button" id="clip-word-${i}-${wi}" class="w ${w.flag ? 'flag' : ''} ${w.needsReview && !w.checked ? 'needs-review' : ''}" data-action="${w.needsReview && !w.checked ? 'review-word' : 'word'}" data-clip="${i}" data-w="${wi}" aria-label="${esc(wordButtonLabel(w))}" ${w.needsReview && !w.checked ? '' : `aria-pressed="${!!w.flag}"`} ${ro ? 'disabled' : ''}>${esc(w.text || '(removed)')}</button>`).join(' ') : '<em>No words recognised.</em>'}</p>
     ${ro ? '' : '<p class="hint small">Tap a Check word to open its review. Other words can be tapped to mark Twi. Every Twi mark needs a checked English meaning.</p>'}
     ${uncertain.length ? `<div class="word-checks" aria-label="Words requiring clinician review">${ro ? '' : '<p class="hint">Replay each flagged word before confirming. Leave its wording blank to omit a word that was not spoken.</p>'}${uncertain.map(({ w, wi }) => wordReviewRow(i, wi, w, ro)).join('')}</div>` : ''}
-    ${(() => { const rs = clipRouting(cl, true); return rs.length ? `<div class="route"><p class="small"><strong>${ro ? 'Added to' : 'Where this will go'}</strong></p><ul>${rs.map(r => `<li><strong>${FIELDS.find(f => f.id === r.field).label}:</strong> ${esc(r.text)}</li>`).join('')}</ul></div>` : ''; })()}
+    ${(() => { const rs = clipRouting(cl, true); return rs.length ? `<details class="draft-destination"><summary>Preview note sections</summary><div class="route"><ul>${rs.map(r => `<li><strong>${FIELDS.find(f => f.id === r.field).label}:</strong> ${esc(r.text)}</li>`).join('')}</ul></div></details>` : ''; })()}
     ${flagged.length || loose.length ? `<div class="flags">
       ${flagged.map(({ w, wi }) => flagRow(i, 'w', wi, `Heard as \u201C${esc(w.text)}\u201D`, w, w.flag === 'marker' ? 'Suggested from your Twi mark' : 'Marked by you', ro)).join('')}
       ${loose.map(({ m, mi }) => flagRow(i, 'm', mi, `Twi mark at ${m.t.toFixed(1)} s`, m, 'No word lined up with this mark', ro)).join('')}
     </div>` : ''}
     <div class="actions">
       <button class="btn" data-action="clip-replay" data-clip="${i}" ${cl.pcm ? '' : 'disabled'}>Replay clip</button>
-      ${ro ? '' : `<button class="btn primary" data-action="clip-insert" data-clip="${i}">Add to record</button>
+      ${ro ? '' : `<button class="btn primary" data-action="clip-insert" data-clip="${i}">Add to clinical note</button>
       <button class="btn quiet" data-action="clip-discard" data-clip="${i}">Discard recording</button>`}
     </div></article>`;
 }
@@ -1309,16 +1344,16 @@ function renderReviewSummary() {
   const reviewed = filled.filter(f => c.fields[f.id].confirmed).length;
   const pending = filled.length - reviewed;
   $('#review-summary').hidden = !filled.length;
-  $('#review-summary').innerHTML = filled.length ? `<span>${reviewed} of ${filled.length} completed fields reviewed</span>${pending ? `<span class="pending">${pending} awaiting review</span>` : ''}` : '';
-  $('#review-panel-status').textContent = filled.length ? pending ? `${pending} field${pending === 1 ? '' : 's'} to review` : 'Completed fields reviewed' : 'Type or review notes';
+  $('#review-summary').innerHTML = filled.length ? `<span>${reviewed} of ${filled.length} completed sections reviewed</span>${pending ? `<span class="pending">${pending} awaiting review</span>` : ''}` : '';
+  $('#review-panel-status').textContent = filled.length ? pending ? `${pending} section${pending === 1 ? '' : 's'} to review` : 'Completed sections reviewed' : 'Type or review notes';
   if (c.mode === 'typing' || (filled.length && !S.reviewHadContent)) $('#review-panel').open = true;
   S.reviewHadContent = !!filled.length;
-  $('#workflow-state').textContent = !c.patientRef.trim() ? 'Add a patient reference' : R.rec ? 'Recording in progress' : S.busy ? 'Preparing the draft' : pending ? `${pending} field${pending === 1 ? '' : 's'} to review` : !c.fields.complaint.text.trim() ? 'Add the presenting complaint' : consultBlockers().length ? 'Check the remaining steps' : 'Ready to save';
+  $('#workflow-state').textContent = !c.patientRef.trim() ? 'Add a patient reference' : R.rec ? 'Finish recording when ready' : S.busy ? 'Wait for the draft' : c.clips.some(cl => !cl.inserted && !cl.discarded) ? 'Check the recorded draft, then add it to the note' : pending ? `${pending} section${pending === 1 ? '' : 's'} to review` : !filled.length && c.mode === 'dictation' ? !c.consent ? 'Confirm recording consent' : !S.asr ? 'Wait for speech, or choose Type notes' : 'Start recording' : !c.fields.complaint.text.trim() ? 'Add the presenting complaint' : consultBlockers().length ? 'Check the remaining steps' : 'Ready to save';
 }
 function renderSave() {
   const b = consultBlockers();
   renderReviewSummary();
-  $('#save').innerHTML = `${b.length ? `<p class="save-notice">Complete these steps before saving:</p><ul class="blockers">${b.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="save-notice ready">All completed fields reviewed. Ready to save.</p>'}
+  $('#save').innerHTML = `${b.length ? `<p class="save-notice">${esc(b[0])}</p>${b.length > 1 ? `<details class="help"><summary>${b.length - 1} more check${b.length === 2 ? '' : 's'} before saving</summary><ul class="blockers">${b.slice(1).map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}` : '<p class="save-notice ready">All completed sections reviewed. Ready to save.</p>'}
     <div class="actions"><button class="btn primary big" data-action="consult-save" ${b.length ? 'disabled aria-disabled="true"' : ''}>Save reviewed record</button>
     <button class="btn quiet" data-action="consult-discard">Discard consultation</button></div>`;
 }
@@ -1427,8 +1462,10 @@ function renderAbout() {
 
 /* ---------- tabs and network ---------- */
 function showTab(name) {
-  $$('nav.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  $$('[data-tab]').forEach(b => { if (b.dataset.tab === name) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   $$('.panel').forEach(p => { p.hidden = p.id !== 'tab-' + name; });
+  $('#more-menu').classList.toggle('active', name === 'tests' || name === 'about');
+  $('#more-menu').open = false;
   if (name === 'records') refreshRecords();
   if (name === 'glossary') renderGloss();
   if (name === 'tests') renderTests();
@@ -1454,6 +1491,7 @@ document.addEventListener('click', async e => {
     case 'backup-export': return exportBackup();
     case 'lock-now': return lockNow();
     case 'model-retry': return loadModel();
+    case 'review-record': $('#review-panel').open = true; $('#review-panel').scrollIntoView?.({ block: 'start', behavior: 'smooth' }); return;
     case 'rec-patient':
       if (R.target === 'patient') return finishPatient();
       touch();

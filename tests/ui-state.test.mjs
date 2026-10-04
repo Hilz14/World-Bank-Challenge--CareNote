@@ -58,7 +58,7 @@ h.run("S.consult.patientRef = 'FICTIONAL-001'; S.consult.fields.complaint.text =
 assert.match(h.node('#review-summary').innerHTML, /1 awaiting review/);
 assert.equal(h.node('#review-panel').open, true);
 assert.equal(h.node('#review-summary').hidden, false);
-assert.equal(h.node('#workflow-state').textContent, '1 field to review');
+assert.equal(h.node('#workflow-state').textContent, '1 section to review');
 assert.match(h.node('#save').innerHTML, /disabled aria-disabled="true"/);
 
 h.run('S.consult.fields.complaint.confirmed = true; renderAll()');
@@ -77,7 +77,7 @@ input.value = 'No headache today';
 input.id = 'ta-complaint';
 h.listeners.get('input')({ target: input });
 assert.equal(h.run('S.consult.fields.complaint.confirmed'), false);
-assert.equal(h.node('#workflow-state').textContent, '1 field to review');
+assert.equal(h.node('#workflow-state').textContent, '1 section to review');
 assert.match(h.node('#save').innerHTML, /disabled aria-disabled="true"/);
 
 h.run("S.consult.fields.plan.text = 'Fictional clinician note'; renderFields()");
@@ -93,6 +93,8 @@ h.run('S.consult.mode = "typing"; renderAll()');
 assert.match(h.node('#patient').innerHTML, /Typing-only mode/);
 assert.doesNotMatch(h.node('#fields').innerHTML, /data-action="field-dictate"/);
 assert.equal(h.node('#capture-step').hidden, true);
+assert.equal(h.node('#consent-box').hidden, true);
+assert.equal(h.node('#review-step-number').textContent, '02');
 assert.equal(h.node('#review-panel').open, true);
 h.run('navigator.onLine = false; updateNet()');
 assert.equal(h.node('#chip-net').textContent, 'Network: offline');
@@ -209,9 +211,34 @@ for (const id of ['complaint', 'account', 'findings', 'plan', 'medicines', 'foll
 assert.match(recording.run('S.consult.fields.account.text'), /Checked meaning.*Twi: Test source term/);
 assert.equal(recording.node('#review-panel').open, true);
 assert.match(recording.node('#save').innerHTML, /disabled/);
+assert.match(recording.node('#patient').innerHTML, /class="added-clip"/);
+assert.doesNotMatch(recording.node('#patient').innerHTML, /data-input="word-edit"/);
+
+// First-time clinicians can start directly; existing accounts lead with PIN sign-in.
+const navigation = makeHarness(html);
+navigation.run('newConsult(); renderLock()');
+assert.match(navigation.node('#lock-body').innerHTML, /Create clinician account/);
+assert.doesNotMatch(navigation.node('#lock-body').innerHTML, /data-action="lock-signin"/);
+navigation.run("LS.set('os.profiles', [{id:'fictional',name:'Fictional clinician'}]); renderLock()");
+assert.match(navigation.node('#lock-body').innerHTML, /Sign in with PIN/);
+const navNames = ['consult', 'records', 'glossary', 'tests', 'about'];
+const navButtons = navNames.map(name => { const n = navigation.node('#nav-' + name); n.dataset.tab = name; return n; });
+const panels = navNames.map(name => { const n = navigation.node('#tab-' + name); n.id = 'tab-' + name; return n; });
+navigation.context.document.querySelectorAll = selector => selector === '[data-tab]' ? navButtons : selector === '.panel' ? panels : [];
+navigation.node('#more-menu').open = true;
+navigation.run("showTab('tests')");
+assert.equal(navigation.node('#more-menu').open, false);
+assert.equal(navigation.node('#nav-tests')['aria-current'], 'page');
+assert.deepEqual(panels.filter(p => !p.hidden).map(p => p.id), ['tab-tests']);
+navigation.run("showTab('consult')");
+assert.equal(navigation.node('#nav-tests')['aria-current'], undefined);
+assert.equal(navigation.node('#nav-consult')['aria-current'], 'page');
+assert.deepEqual(panels.filter(p => !p.hidden).map(p => p.id), ['tab-consult']);
 
 assert.match(html, /AI drafts English/);
-assert.match(html, /Clinical notes, reviewed by you/);
+assert.match(html, /Turn speech into clinical notes/);
+assert.match(html, /Record speech, check the draft and save a reviewed patient record/);
+assert.match(html, /id="more-menu"/);
 assert.doesNotMatch(html, /MAX_CLIP_MS|R\.auto|00:45/);
 assert.match(html, /not AI detection or transcription accuracy/);
 assert.doesNotMatch(html, /https:\/\/fonts\./);
