@@ -1,22 +1,24 @@
-# GOLDNexus CareNote
+# CareNote
 
-A clinician-controlled documentation prototype for the World Bank Small AI health track. A local speech model creates an English draft; the clinician replays, edits, reviews and saves the record. Twi wording and meaning are entered and checked by the clinician. This release does not automatically transcribe or translate Twi.
+A clinician-controlled documentation tool by GOLDNexus Health for the World Bank Small AI health track. A local speech model creates an English draft; the clinician replays, edits, reviews and saves the record. Twi wording and meaning are entered and checked by the clinician. This release does not automatically transcribe or translate Twi.
 
-Use fictional consultations while testing. This prototype has not been validated for clinical deployment.
+Use fictional consultations while testing. Clinical validation has not been completed.
 
 ## Open and use it
 
-Live prototype: https://hilz14.github.io/World-Bank-Challenge--CareNote/
+Live app: https://hilz14.github.io/World-Bank-Challenge--CareNote/
 
 1. Open the HTTPS address in a normal browser tab on your phone. Connect to the internet for the first installation.
 2. Choose **Set up a new account**, enter a clinician name and choose a PIN. Use at least six digits. Keep the PIN: there is no reset that can recover the encrypted notes.
-3. Wait for **English speech: ready**. Reload once while online so the service worker can control the page.
-4. In **Consultation**, add a fictional patient reference and obtain simulated recording consent. The main recording control remains disabled without consent.
-5. Choose **Start recording**. Record a short English account or clinician dictation, then choose **Stop and transcribe**. Clips stop after 45 seconds.
+3. Wait for **Speech ready**. Reload once while online so the service worker can control the page. Open the speech status control to see network and clinician details.
+4. In **Consult**, add a fictional patient reference and obtain simulated recording consent. The main recording control remains disabled without consent.
+5. Choose **Start recording**. The six spoken section names stay visible beside the controls. During recording, **Mark Twi word** is the large control, elapsed time is shown, and **Stop and transcribe** sits underneath. Clips stop after 45 seconds. The T shortcut hint appears only on larger screens with a fine pointer.
 6. Replay the complete clip, check the draft and enter checked Twi wording and English meaning where applicable. The marks are clinician annotations, not an AI language detector.
-7. Choose **Add to record**, edit each completed field and choose **Mark as reviewed**. Optional findings, plan, medicines and follow-up are under **Additional clinician notes**. These are clinician notes; the app does not generate medical recommendations.
+7. Choose **Add to record** to open **Review the record**, edit each completed field and choose **Mark as reviewed**. The review panel also opens when you choose **Typing only**, or can be opened manually. Optional findings, plan, medicines and follow-up are under **Additional clinician notes**. These are clinician notes; the app does not generate medical recommendations.
 8. Choose **Save reviewed record**. Save remains disabled while required information or review is missing. Editing a reviewed field resets its approval.
-9. Find the saved record under **Saved records**. Use **Lock app** when finished. The existing automatic lock is three minutes of inactivity.
+9. Find the saved record under **Records**. Use **Lock** when finished. The existing automatic lock is three minutes of inactivity.
+
+The consultation uses a single column on desktop and phone. Empty review forms are collapsed, and review counts appear only after a field contains text. Consultation controls and secondary text use at least 14 px; text-entry controls use 16 px. The welcome screen keeps its existing layout, with consistent CareNote naming and without repeated release-status labels. Use **CareNote, by GOLDNexus Health** in the submission video.
 
 For section routing, the clinician can say a section label such as “Complaint”, “Account” or “Medicines”. This uses simple rules. It is not AI summarisation or clinical reasoning.
 
@@ -51,9 +53,11 @@ Run the state checks with an installed Node.js runtime:
 node tests/ui-state.test.mjs
 ```
 
-These checks cover review counts, resetting approval after edits, save gating, optional-field visibility, typing mode, model-failure wording, network wording and removal of remote font requests. They execute state and markup logic with a small test harness. They do not exercise a microphone, speech model, actual authentication, browser storage or offline inference.
+These checks cover review counts, resetting approval after edits, save gating, optional-field visibility, typing mode, model-failure wording, network wording, recording-clock cleanup, keyboard markers, six-section routing and retention of checked Twi wording. They execute state and markup logic with a small test harness and a mock recorder. They do not exercise a real microphone, speech model, actual authentication, browser storage or offline inference.
 
-## Evidence still needed for submission
+## Submission evidence checklist
+
+The builder has reported successful offline operation and Twi selection/playback, plus an approximately 50% time saving against historical writing data. Those reports should be accompanied by the tested device/version, results and historical source. They are not independently verified by the code checks below.
 
 1. Three cold offline runs on the actual phone: initial installation online, then airplane mode, WiFi off, USB disconnected and laptop off. Close and reopen the app, record fresh English speech, review and save. Keep the failures too.
 2. Ten independently checked fictional accounts, including English, Twi and mixed input for the actual speaker workflow. Count preserved facts, unsupported additions and critical errors in both the raw draft and reviewed record. Mark manual Twi and English work explicitly.
