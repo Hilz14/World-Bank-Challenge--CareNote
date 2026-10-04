@@ -277,4 +277,23 @@ assert.match(omitted.run('clipRouting(noText, true)[0].text'), /Twi audio marked
 omitted.run('noText.markers[0].dismissed = true');
 assert.equal((omitted.run('transcriptHTML(noText, 0, false)').match(/data-action="review-mark"/g) || []).length, 1);
 
+// Quiet edges must stay in playback and in the input sent to ASR.
+const fullAudio = makeHarness(html);
+fullAudio.context.fullPCM = new Float32Array(6 * 16000).fill(.002);
+fullAudio.run("fullPCM.fill(.2, 16000, 5 * 16000); toPCM = async () => fullPCM; let receivedPCM; runASR = async pcm => { receivedPCM = pcm; return { text: 'Fictional complete draft', chunks: [] }; };");
+const fullResult = await fullAudio.run("processCapture({blob:{size:100},markers:[.5,5.5]})");
+assert.equal(fullResult.pcm, fullAudio.context.fullPCM);
+assert.equal(fullAudio.run('receivedPCM'), fullAudio.context.fullPCM);
+assert.equal(fullResult.duration, 6);
+assert.deepEqual(JSON.parse(JSON.stringify(fullResult.markers)), [.5,5.5]);
+fullAudio.run("runASR = async () => { throw new Error('Fictional model failure'); }; console.error = () => {};");
+const failedResult = await fullAudio.run("processCapture({blob:{size:100},markers:[1]})");
+assert.equal(failedResult.pcm, fullAudio.context.fullPCM);
+assert.match(failedResult.captureNotice, /full recording is kept/);
+fullAudio.run('fullPCM.fill(0)');
+const silentResult = await fullAudio.run("processCapture({blob:{size:100},markers:[1]})");
+assert.equal(silentResult.pcm, fullAudio.context.fullPCM);
+assert.equal(silentResult.text, '');
+assert.match(silentResult.captureNotice, /No clear speech/);
+
 console.log('PASS: review/save guards, edit reset, optional fields, typing mode, model failure, uncapped recording clocks, active-use and inactivity lock, longer-audio chunking, markers, six-section routing and retained Twi wording.');

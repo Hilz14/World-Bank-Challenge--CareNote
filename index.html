@@ -1051,11 +1051,24 @@ async function runASR(pcm) {
 }
 async function processCapture(cap) {
   if (!cap || !cap.blob.size) return { rejected: 'Nothing was recorded. Try again.' };
-  const t = trimSilence(await toPCM(cap.blob));
-  if (!t.audio || t.voiced < MIN_VOICED_S) return { rejected: 'No clear speech was detected, so nothing was transcribed. Move closer to the phone and record again.' };
-  const r = await runASR(t.audio);
-  const norm = r.text.toLowerCase().replace(/\s+/g, ' ').trim();
-  return { pcm: t.audio, duration: t.audio.length / SR, text: r.text, chunks: r.chunks, markers: cap.markers.map(m => Math.max(0, m - t.start)), suspect: !norm || SUSPECT.includes(norm) };
+  const pcm = await toPCM(cap.blob);
+  if (!pcm.length) return { rejected: 'The recording contains no decoded audio. Try again.' };
+  const base = { pcm, duration: pcm.length / SR, markers: cap.markers.slice() };
+  // Detect likely silence without cutting quiet speech from playback or ASR.
+  const detected = trimSilence(pcm);
+  if (!detected.audio || detected.voiced < MIN_VOICED_S) return {
+    ...base, text: '', chunks: [], suspect: true,
+    captureNotice: 'No clear speech was detected. The full recording is kept for replay. Check the audio, then record again or type your note.',
+  };
+  try {
+    const r = await runASR(pcm);
+    const norm = r.text.toLowerCase().replace(/\s+/g, ' ').trim();
+    return { ...base, text: r.text, chunks: r.chunks, suspect: !norm || SUSPECT.includes(norm) };
+  } catch (err) {
+    console.error(err);
+    return { ...base, text: '', chunks: [], suspect: true,
+      captureNotice: 'Transcription failed. The full recording is kept for replay. Record again or type the missing information before discarding this clip.' };
+  }
 }
 
 /* ---------- consultation ---------- */
@@ -1083,7 +1096,7 @@ function buildClip(r) {
     : r.text.split(/\s+/).filter(Boolean).map(t => ({ text: t, heard: t, start: null, end: null, modelScore: null, needsReview: false, checked: false, replayed: false, flag: null, twi: '', en: '' }));
   const markers = r.markers.map(t => ({ t, attached: false, dismissed: false, twi: '', en: '' }));
   // Audio marks are independent of ASR words: omitted Twi must not replace nearby English.
-  return { id: uid(), pcm: r.pcm, duration: r.duration, text: r.text, words, markers, suspect: r.suspect, fullReviewRequired: !hasScores, replayed: false, ack: false, inserted: false, discarded: false, noWords: !r.chunks };
+  return { id: uid(), pcm: r.pcm, duration: r.duration, text: r.text, words, markers, suspect: r.suspect, captureNotice: r.captureNotice || '', fullReviewRequired: !hasScores, replayed: false, ack: false, inserted: false, discarded: false, noWords: !r.chunks };
 }
 async function finishPatient() {
   const cap = await recStop(); S.busy = 'patient'; armIdle(); renderAll();
@@ -1297,9 +1310,9 @@ function clipHTML(cl, i) {
   const uncertain = cl.words.map((w, wi) => ({ w, wi })).filter(x => x.w.needsReview && !x.w.flag);
   const loose = cl.markers.map((m, mi) => ({ m, mi })).filter(x => !x.m.attached && !x.m.dismissed);
   return `<article class="clip" id="clip-${cl.id}" aria-label="Recording ${i + 1}">
-    <div class="cliphead"><h3>Recording ${i + 1}${cl.targetField ? ': ' + esc(FIELDS.find(f => f.id === cl.targetField).label) + ' dictation' : ''}</h3><span class="meta">${cl.duration.toFixed(1)} s${cl.noWords ? ', no word timings' : ''}</span>
+    <div class="cliphead"><h3>Recording ${i + 1}${cl.targetField ? ': ' + esc(FIELDS.find(f => f.id === cl.targetField).label) + ' dictation' : ''}</h3><span class="meta">${cl.duration.toFixed(1)} s of recorded audio${cl.noWords ? ', no word timings' : ''}</span>
       <span class="tag ${ro ? 'ok' : ''}">${ro ? 'Added for review' : 'Draft: check against audio'}</span></div>
-    ${cl.suspect ? '<div class="warn" role="alert"><p>The speech model may have added wording that was not spoken. Replay the full recording and check the transcript.</p></div>' : ''}
+    ${cl.captureNotice ? `<div class="warn" role="alert"><p>${esc(cl.captureNotice)}</p></div>` : cl.suspect ? '<div class="warn" role="alert"><p>The speech model may have added wording that was not spoken. Replay the full recording and check the transcript.</p></div>' : ''}
     ${!cl.targetField ? `<label>Note section<select data-input="clip-section" data-clip="${i}"><option value="" ${!cl.routeField ? 'selected' : ''}>Automatic: use spoken section titles</option>${FIELDS.map(f => `<option value="${f.id}" ${cl.routeField === f.id ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select></label><p class="hint small">Check the section preview. To send this whole recording to one section, choose it here.</p>` : ''}
     <div class="auto-check" id="clip-checks-${i}" role="status">${clipCheckSummary(cl)}</div>
     <p class="hint small">Confirm all wording only after checking the complete draft. Replay is available when needed.</p>

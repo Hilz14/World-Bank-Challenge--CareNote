@@ -99,3 +99,7 @@ Each press of **Mark Twi word** creates an independent audio placeholder in the 
 ### Correcting section routing
 
 Spoken section titles are recognised at the start, after punctuation, after a pause of at least 0.6 seconds, or with a heading followed by a subject such as “The patient” or “My”. Routing is heuristic, not clinical reasoning. Inspect **Preview note sections** before adding the recording. **Note section** can send a whole consultation recording to one selected section; choose Automatic to restore spoken-title routing. Field dictation keeps its original destination. Final section review remains required.
+
+### Full recording preservation
+
+Playback and transcription use the complete decoded recording, including quiet beginning and ending audio. Silence detection only decides whether to attempt transcription; it does not crop the retained audio. Recordings with no detected speech or failed transcription remain available for replay until the consultation is saved or discarded. Twi markers keep their original times. This prevents application-level trimming from removing quiet words; it does not guarantee microphone capture or speech recognition completeness. Validate full replay on the target phone.
