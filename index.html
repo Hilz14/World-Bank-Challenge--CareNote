@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>CareNote</title>
+<link rel="icon" type="image/svg+xml" href="assets/carenote-mark.svg">
 <meta name="theme-color" content="#176A55">
 <style>
 :root{
@@ -151,9 +152,9 @@ body.locked{overflow:hidden}
 #app{max-width:52rem;padding:0 1.25rem 3rem}
 .top{gap:.5rem;padding:.75rem 0;border-bottom:1px solid var(--line);margin-bottom:0;flex-wrap:nowrap}
 .brand{display:flex;align-items:center;gap:.75rem;margin-right:auto;min-width:0}
-.brand-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:var(--primary);color:#fff;flex:none}
-.brand-mark svg{width:25px;height:25px}
-.brand h1{font-size:1.45rem;letter-spacing:-.045em;line-height:1.1;margin:0}
+.brand-mark{display:grid;place-items:center;width:46px;height:46px;border-radius:16px 16px 16px 5px;background:linear-gradient(145deg,#25846A,#104B3E);color:#fff;flex:none;box-shadow:0 3px 9px #176A5520;transform:rotate(-4deg)}
+.brand-mark svg{width:38px;height:38px;transform:rotate(4deg)}
+.brand h1{font-size:1.6rem;letter-spacing:-.055em;line-height:1.1;margin:0;font-weight:800;white-space:nowrap}.brand-care{color:#125B48}.brand-note{color:#294A3F;font-weight:500}
 .brand p{font-size:.875rem;font-weight:600;letter-spacing:0;color:var(--muted);margin:.3rem 0 0}
 .status-menu{position:relative;flex:none;margin-left:auto}
 .status-menu>summary{display:flex;align-items:center;gap:.25rem;list-style:none;min-height:44px}
@@ -287,7 +288,7 @@ details.rec summary{font-size:.875rem;line-height:1.6}
 #lock{background:#F5F6F2;padding:0 1.5rem 2rem}
 .lock-shell{max-width:68rem;margin:0 auto}
 .lock-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.6rem 0;border-bottom:1px solid var(--line)}
-.lock-top .brand{margin:0}.lock-top .brand h1{font-size:1.3rem}
+.lock-top .brand{margin:0}.lock-top .brand h1{font-size:1.65rem}
 .prototype-pill{border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:.7rem;padding:.4rem .7rem;background:#fff}
 .lock-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:4rem;align-items:center;min-height:calc(100svh - 8rem);padding:3rem 0}
 .lock-story h2{font:400 3.3rem/1.09 Georgia,'Times New Roman',serif;letter-spacing:-.055em;max-width:10ch;display:block;margin:.8rem 0 1.2rem}
@@ -315,7 +316,7 @@ details.rec summary{font-size:.875rem;line-height:1.6}
 @media(max-width:680px){
   #app{padding:0 .75rem 2rem}.top{gap:.35rem;padding:.5rem 0}
   #app .brand{gap:.4rem}#app .brand h1{font-size:1.2rem}#app .brand p{display:none}
-  #app .brand-mark{width:28px;height:28px;border-radius:9px}#app .brand-mark svg{width:20px;height:20px}
+  #app .brand-mark{width:30px;height:30px;border-radius:10px 10px 10px 3px}#app .brand-mark svg{width:26px;height:26px}
   #app .chip{font-size:.875rem;padding:.3rem .4rem}#app .lock-button{padding:.45rem .6rem}
   nav.tabs{gap:.1rem}nav.tabs button{font-size:.875rem;padding:.5rem .2rem}
   .consult-intro{align-items:flex-start;flex-direction:column;gap:.2rem;padding:.6rem 0}
@@ -387,7 +388,7 @@ nav.tabs button[aria-current=page]{background:#E3EDE5;color:var(--primary);box-s
 <div id="lock" role="dialog" aria-modal="true" aria-labelledby="lock-title">
   <div class="lock-shell">
     <header class="lock-top">
-      <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3.5h8l3 3V20H7a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2Z"/><path d="M14 3.5v4h4M9 12h5M9 16h3"/></svg></span><div><h1 id="lock-title">CareNote</h1><p>GOLDNexus Health</p></div></div>
+      <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><path d="M13 9h16l8 8v18a4 4 0 0 1-4 4H21l-9 5v-5a4 4 0 0 1-4-4V14a5 5 0 0 1 5-5Z" fill="#F7FAF2"/><path d="M29 9v6a2 2 0 0 0 2 2h6" fill="#EBCB80"/><path d="M16 24v5m5-9v13m5-10v7" stroke="#176A55" stroke-width="3" stroke-linecap="round"/><path d="m29 32 2.5 2.5 5-6" stroke="#176A55" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><h1 id="lock-title" aria-label="CareNote"><span class="brand-care">Care</span><span class="brand-note">Note</span></h1><p>GOLDNexus Health</p></div></div>
     </header>
     <div class="lock-layout">
       <section class="lock-story" aria-label="How CareNote works">
@@ -408,7 +409,7 @@ nav.tabs button[aria-current=page]{background:#E3EDE5;color:var(--primary);box-s
   <div class="workspace-header">
   <header class="top">
     <button class="btn menu-toggle" id="menu-toggle" data-action="menu-open" aria-label="Open navigation menu" aria-controls="side-menu" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3.5h8l3 3V20H7a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2Z"/><path d="M14 3.5v4h4M9 12h5M9 16h3"/></svg></span><div><h1>CareNote</h1><p>GOLDNexus Health</p></div></div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><path d="M13 9h16l8 8v18a4 4 0 0 1-4 4H21l-9 5v-5a4 4 0 0 1-4-4V14a5 5 0 0 1 5-5Z" fill="#F7FAF2"/><path d="M29 9v6a2 2 0 0 0 2 2h6" fill="#EBCB80"/><path d="M16 24v5m5-9v13m5-10v7" stroke="#176A55" stroke-width="3" stroke-linecap="round"/><path d="m29 32 2.5 2.5 5-6" stroke="#176A55" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><h1 aria-label="CareNote"><span class="brand-care">Care</span><span class="brand-note">Note</span></h1><p>GOLDNexus Health</p></div></div>
     <span class="chip" id="chip-model" role="status">Speech loading</span>
   </header>
   <div class="connection-banner" id="connection-banner" role="status" aria-live="polite"><span class="chip" id="chip-net">Online</span><p class="connection-detail" id="connection-detail">Checking speech availability.</p></div>
