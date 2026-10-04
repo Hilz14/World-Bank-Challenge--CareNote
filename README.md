@@ -91,3 +91,7 @@ The builder has reported successful offline operation and Twi selection/playback
 7. The required 2 to 5 minute video showing the real end-to-end workflow, AI value, guardrails, localisation and honest limits. Follow the participant portal’s actual submission instructions and save its confirmation receipt.
 
 The in-app Twi highlighting log measures manual marking coverage, not model recognition accuracy. Its timing averages are a helpful exploratory log; they are not a substitute for paired cases with equal final quality.
+
+### Recording-time Twi audio marks
+
+Each press of **Mark Twi word** creates an independent audio placeholder in the draft, including when the English model returns no text for that moment. Tap the placeholder to open replay and clinician-entered wording and meaning. Placement uses speech timestamps and is approximate; without word timings, placeholders appear after the draft. Recording-time marks do not replace nearby English words. A checked English meaning is required before adding a marked recording, or the clinician can explicitly dismiss an accidental mark. Replay includes 2.5 seconds before and up to 5 seconds after the mark. The clinician checks the final section and position before saving. This is manual language support, not automatic Twi recognition or translation.

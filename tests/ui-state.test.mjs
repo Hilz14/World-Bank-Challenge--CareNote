@@ -205,8 +205,9 @@ assert.deepEqual(JSON.parse(JSON.stringify(asrCalls[0].options)), { chunk_length
 assert.equal(longResult.chunks[1].start, 70);
 speech.context.longResult = longResult;
 const laterClip = speech.run('buildClip({ ...longResult, pcm: audioFixture, duration: 95, markers: [70.7], suspect: false })');
-assert.equal(laterClip.markers[0].attached, true);
-assert.equal(laterClip.words[1].flag, 'marker');
+assert.equal(laterClip.markers[0].attached, false);
+assert.equal(laterClip.words[1].flag, null, 'An audio mark must not replace nearby English.');
+assert.match(speech.run('transcriptHTML(buildClip({ ...longResult, pcm: audioFixture, duration: 95, markers: [70.7], suspect: false }), 0, false)'), /Twi audio marked: enter wording and meaning/);
 
 // The visible section cues must remain compatible with the existing routing.
 recording.run(`newConsult(); S.consult.patientRef = 'FICTIONAL-ROUTING';
@@ -259,4 +260,12 @@ assert.doesNotMatch(html, /<details class="status-menu"|id="more-menu"/);
 assert.doesNotMatch(html, /MAX_CLIP_MS|R\.auto|00:45/);
 assert.match(html, /not AI detection or transcription accuracy/);
 assert.doesNotMatch(html, /https:\/\/fonts\./);
+// Empty ASR output must retain recording-time audio markers.
+const omitted = makeHarness(html);
+omitted.run("const noText = buildClip({ text: '', chunks: [], duration: 5, markers: [1, 2], suspect: true });");
+assert.equal((omitted.run('transcriptHTML(noText, 0, false)').match(/data-action="review-mark"/g) || []).length, 2);
+assert.match(omitted.run('clipRouting(noText, true)[0].text'), /Twi audio marked/);
+omitted.run('noText.markers[0].dismissed = true');
+assert.equal((omitted.run('transcriptHTML(noText, 0, false)').match(/data-action="review-mark"/g) || []).length, 1);
+
 console.log('PASS: review/save guards, edit reset, optional fields, typing mode, model failure, uncapped recording clocks, active-use and inactivity lock, longer-audio chunking, markers, six-section routing and retained Twi wording.');

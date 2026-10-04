@@ -1082,17 +1082,7 @@ function buildClip(r) {
     ? r.chunks.map(w => ({ text: w.text, heard: w.text, start: w.start, end: w.end, modelScore: w.modelScore, needsReview: hasScores && (!Number.isFinite(w.modelScore) || w.modelScore < WORD_REVIEW_THRESHOLD), checked: false, replayed: false, flag: null, twi: '', en: '' }))
     : r.text.split(/\s+/).filter(Boolean).map(t => ({ text: t, heard: t, start: null, end: null, modelScore: null, needsReview: false, checked: false, replayed: false, flag: null, twi: '', en: '' }));
   const markers = r.markers.map(t => ({ t, attached: false, dismissed: false, twi: '', en: '' }));
-  if (r.chunks) {
-    // Each mark highlights the one word that ends closest to it, within 2 s before or 0.5 s after the press.
-    for (const m of markers) {
-      let best = null, bestD = Infinity;
-      for (const w of words) {
-        if (w.start == null || w.end == null) continue;
-        if (w.end >= m.t - 2.0 && w.start <= m.t + 0.5) { const d = Math.abs(m.t - w.end); if (d < bestD) { bestD = d; best = w; } }
-      }
-      if (best) { best.flag = best.flag || 'marker'; m.attached = true; }
-    }
-  }
+  // Audio marks are independent of ASR words: omitted Twi must not replace nearby English.
   return { id: uid(), pcm: r.pcm, duration: r.duration, text: r.text, words, markers, suspect: r.suspect, fullReviewRequired: !hasScores, replayed: false, ack: false, inserted: false, discarded: false, noWords: !r.chunks };
 }
 async function finishPatient() {
@@ -1150,23 +1140,50 @@ function tidy(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 }
 // Returns [{field, text}] with Twi words replaced by their English meaning, one entry per field.
+function markerText(m, forPreview) {
+  return forPreview ? '[Twi audio marked: enter wording and meaning]'
+    : `${m.en.trim()} [Twi: ${m.twi.trim() || 'not written'}]`;
+}
 function clipRouting(cl, forPreview) {
   const out = {};
   const sections = cl.targetField ? [{ field: cl.targetField, idx: cl.words.map((_, i) => i) }] : splitSections(cl.words);
-  for (const seg of sections) {
-    const t = tidy(seg.idx.map(i => { const w = cl.words[i];
-      if (!w.flag) return w.text;
-      return forPreview ? `${w.text} [Twi]` : `${w.en.trim()} [Twi: ${w.twi.trim() || 'not written'}]`;
-    }).join(' '));
-    if (t) out[seg.field] = out[seg.field] ? out[seg.field] + ' ' + t : t;
+  if (!sections.length) sections.push({ field: cl.targetField || 'account', idx: [] });
+  const marks = cl.markers.filter(m => !m.attached && !m.dismissed);
+  const buckets = sections.map(() => []);
+  for (const m of marks) {
+    let si = 0;
+    sections.forEach((seg, i) => {
+      const first = seg.idx.map(wi => cl.words[wi].start).find(t => Number.isFinite(t));
+      if (first != null && first <= m.t) si = i;
+    });
+    buckets[si].push(m);
   }
-  const extra = cl.markers.filter(m => !m.attached && !m.dismissed);
-  if (extra.length) {
-    const note = forPreview ? `(Also said in Twi: ${extra.length} marked word${extra.length > 1 ? 's' : ''}.)`
-      : `(Also said in Twi: ${extra.map(m => `${m.en.trim()} [Twi: ${m.twi.trim() || 'not written'}]`).join('; ')}.)`;
-    out.account = out.account ? out.account + ' ' + note : note;
-  }
+  sections.forEach((seg, si) => {
+    const remaining = [...buckets[si]].sort((a, b) => a.t - b.t), parts = [];
+    for (const wi of seg.idx) {
+      const w = cl.words[wi];
+      while (remaining.length && Number.isFinite(w.start) && remaining[0].t <= w.start) parts.push(markerText(remaining.shift(), forPreview));
+      parts.push(!w.flag ? w.text : forPreview ? `${w.text} [Twi]` : `${w.en.trim()} [Twi: ${w.twi.trim() || 'not written'}]`);
+    }
+    remaining.forEach(m => parts.push(markerText(m, forPreview)));
+    const text = tidy(parts.join(' '));
+    if (text) out[seg.field] = out[seg.field] ? out[seg.field] + ' ' + text : text;
+  });
   return FIELDS.filter(f => out[f.id]).map(f => ({ field: f.id, text: out[f.id] }));
+}
+function transcriptHTML(cl, ci, ro) {
+  const entries = cl.words.map((w, wi) => ({ kind: 'word', item: w, idx: wi, at: Number.isFinite(w.start) ? w.start : Infinity }));
+  cl.markers.forEach((m, mi) => { if (!m.attached && !m.dismissed) entries.push({ kind: 'mark', item: m, idx: mi, at: m.t }); });
+  if (cl.words.every(w => !Number.isFinite(w.start))) entries.forEach(e => { if (e.kind === 'mark') e.at = Infinity; });
+  entries.sort((a, b) => a.at - b.at);
+  return entries.map(e => {
+    if (e.kind === 'mark') {
+      const m = e.item;
+      return `<button type="button" class="w flag" data-action="review-mark" data-clip="${ci}" data-idx="${e.idx}" aria-label="Twi audio mark at ${m.t.toFixed(1)} seconds: open wording and meaning" ${ro ? 'disabled' : ''}>[${m.en.trim() ? 'Twi: ' + esc(m.en.trim()) : 'Twi audio marked: enter wording and meaning'}]</button>`;
+    }
+    const w = e.item, wi = e.idx;
+    return `<button type="button" id="clip-word-${ci}-${wi}" class="w ${w.flag ? 'flag' : ''} ${w.needsReview && !w.checked ? 'needs-review' : ''}" data-action="${w.needsReview && !w.checked ? 'review-word' : 'word'}" data-clip="${ci}" data-w="${wi}" aria-label="${esc(wordButtonLabel(w))}" ${w.needsReview && !w.checked ? '' : `aria-pressed="${!!w.flag}"`} ${ro ? 'disabled' : ''}>${esc(w.text || '(removed)')}</button>`;
+  }).join(' ') || '<em>No words recognised.</em>';
 }
 function clipBlockers(cl) {
   const missing = cl.words.filter(w => w.flag && !w.en.trim()).length + cl.markers.filter(m => !m.attached && !m.dismissed && !m.en.trim()).length;
@@ -1256,7 +1273,7 @@ function renderPatient() {
     ${c.mode !== 'typing' && !recHere && !S.busy ? '<div class="section-cues" aria-label="Spoken section names"><strong class="section-cues-label">Optional: say a section name to organise your note.</strong><span>Complaint</span><span>Account</span><span>Findings</span><span>Plan</span><span>Medicines</span><span>Follow-up</span></div>' : ''}
     ${S.busy === 'patient' ? '<p class="live" aria-live="polite">Transcribing this recording on your device. Please wait.</p>' : ''}
     ${!recHere && !S.busy ? '<p class="language-note"><strong>AI drafts English.</strong> You check the wording and enter any Twi meaning.</p>' : ''}
-    <details class="help"><summary>Dictation help</summary><p>Start a clip with a section name, followed by its text. Text without a section name goes into the patient's account. Section routing uses simple rules.</p><p>Words labelled <strong>Check</strong> need review. Check each one, correct the wording if needed and confirm it. Replay is optional. A word without a flag can still be wrong; check the full draft.</p><p>Press <strong>Mark Twi word</strong> while recording. After transcription, tap an unflagged word to mark Twi or choose <strong>Mark as Twi</strong> within its review controls. Replay the marked moment, enter the wording and meaning, and check the full clip. Dictation from a record field uses the same review step before being added to that field.</p></details>
+    <details class="help"><summary>Dictation help</summary><p>Start a clip with a section name, followed by its text. Text without a section name goes into the patient's account. Section routing uses simple rules.</p><p>Words labelled <strong>Check</strong> need review. Check each one, correct the wording if needed and confirm it. Replay is optional. A word without a flag can still be wrong; check the full draft.</p><p>Press <strong>Mark Twi word</strong> while recording. After transcription, tap an unflagged word to mark Twi or choose <strong>Mark as Twi</strong> within its review controls. Each recording-time mark appears as a Twi audio placeholder even if no words were transcribed. Its position is approximate. Open it, replay the marked moment, enter the wording and meaning, and check the full clip. Dictation from a record field uses the same review step before being added to that field.</p></details>
     ${c.clips.map((cl, i) => clipHTML(cl, i)).join('')}`;
 }
 function clipHTML(cl, i) {
@@ -1278,13 +1295,13 @@ function clipHTML(cl, i) {
     <div class="auto-check" id="clip-checks-${i}" role="status">${clipCheckSummary(cl)}</div>
     <p class="hint small">Confirm all wording only after checking the complete draft. Replay is available when needed.</p>
     ${cl.suspect || cl.fullReviewRequired ? `<label class="check"><input type="checkbox" id="clip-ack-${i}" data-input="clip-ack" data-clip="${i}" ${cl.ack ? 'checked' : ''} ${ro ? 'disabled' : ''}> I checked the full transcript and confirm its wording</label>` : ''}
-    <p class="transcript">${cl.words.length ? cl.words.map((w, wi) => `<button type="button" id="clip-word-${i}-${wi}" class="w ${w.flag ? 'flag' : ''} ${w.needsReview && !w.checked ? 'needs-review' : ''}" data-action="${w.needsReview && !w.checked ? 'review-word' : 'word'}" data-clip="${i}" data-w="${wi}" aria-label="${esc(wordButtonLabel(w))}" ${w.needsReview && !w.checked ? '' : `aria-pressed="${!!w.flag}"`} ${ro ? 'disabled' : ''}>${esc(w.text || '(removed)')}</button>`).join(' ') : '<em>No words recognised.</em>'}</p>
+    <p class="transcript">${transcriptHTML(cl, i, ro)}</p>
     ${ro ? '' : '<p class="hint small">Tap a Check word to open its review. Other words can be tapped to mark Twi. Every Twi mark needs a checked English meaning.</p>'}
     ${uncertain.length ? `<div class="word-checks" aria-label="Words requiring clinician review">${ro ? '' : '<p class="hint">Check the flagged wording and confirm it. Replay is optional. Leave its wording blank to omit a word that was not spoken.</p>'}${uncertain.map(({ w, wi }) => wordReviewRow(i, wi, w, ro)).join('')}</div>` : ''}
     ${(() => { const rs = clipRouting(cl, true); return rs.length ? `<details class="draft-destination"><summary>Preview note sections</summary><div class="route"><ul>${rs.map(r => `<li><strong>${FIELDS.find(f => f.id === r.field).label}:</strong> ${esc(r.text)}</li>`).join('')}</ul></div></details>` : ''; })()}
     ${flagged.length || loose.length ? `<div class="flags">
       ${flagged.map(({ w, wi }) => flagRow(i, 'w', wi, `Heard as \u201C${esc(w.text)}\u201D`, w, w.flag === 'marker' ? 'Suggested from your Twi mark' : 'Marked by you', ro)).join('')}
-      ${loose.map(({ m, mi }) => flagRow(i, 'm', mi, `Twi mark at ${m.t.toFixed(1)} s`, m, 'No word lined up with this mark', ro)).join('')}
+      ${loose.map(({ m, mi }) => flagRow(i, 'm', mi, `Twi audio mark at ${m.t.toFixed(1)} s`, m, 'Audio marked by the clinician; not automatically transcribed', ro)).join('')}
     </div>` : ''}
     <div class="actions">
       <button class="btn" data-action="clip-replay" data-clip="${i}" ${cl.pcm ? '' : 'disabled'}>Replay clip</button>
@@ -1333,7 +1350,7 @@ function updateWordReview(ci, wi) {
 }
 function flagRow(ci, kind, idx, title, item, src, ro) {
   const d = ro ? 'disabled' : '';
-  return `<div class="flagrow" ${kind === 'w' && item.needsReview ? `id="word-review-${ci}-${idx}"` : ''}>
+  return `<div class="flagrow" ${kind === 'w' && item.needsReview ? `id="word-review-${ci}-${idx}"` : kind === 'm' ? `id="mark-review-${ci}-${idx}"` : ''}>
     <div class="flaghead"><strong>${title}</strong><span class="meta">${src}</span>
       <button class="btn small" ${kind === 'w' ? `id="word-replay-${ci}-${idx}"` : ''} data-action="${kind === 'w' ? 'word-replay' : 'mark-replay'}" data-clip="${ci}" data-idx="${idx}">Replay</button>
       ${kind === 'w' && !ro ? `<button class="btn small quiet" data-action="word" data-clip="${ci}" data-w="${idx}">Remove Twi mark</button>` : ''}
@@ -1591,7 +1608,11 @@ document.addEventListener('click', async e => {
       if (w.flag && !w.en.trim()) return toast('Enter the checked English meaning first.');
       w.checked = !w.checked; renderPatient(); $('#word-check-' + b.dataset.clip + '-' + b.dataset.idx)?.focus(); return;
     }
-    case 'mark-replay': { const cl = clipOf(b), m = cl.markers[+b.dataset.idx]; return playPCM(cl.pcm, Math.max(0, m.t - 2.5), m.t + 1); }
+    case 'review-mark': {
+      const row = $('#mark-review-' + b.dataset.clip + '-' + b.dataset.idx);
+      row?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); row?.querySelector('input')?.focus(); return;
+    }
+    case 'mark-replay': { const cl = clipOf(b), m = cl.markers[+b.dataset.idx]; return playPCM(cl.pcm, Math.max(0, m.t - 2.5), Math.min(cl.duration, m.t + 5)); }
     case 'mark-dismiss': { clipOf(b).markers[+b.dataset.idx].dismissed = true; renderPatient(); return; }
     case 'clip-replay': {
       const cl = clipOf(b), played = await playPCM(cl.pcm);
