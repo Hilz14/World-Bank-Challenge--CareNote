@@ -425,12 +425,14 @@ details.rec summary{font-size:.875rem;line-height:1.6}
         <h2>Twi glossary</h2>
         <p class="hint">Built from wording and meanings clinicians check. Store language terms only; keep names and patient details out of this unencrypted glossary.</p>
         <div id="gloss"></div>
+        <h3 id="g-editor-title">Add a glossary entry</h3>
         <div class="pair">
-          <label>Twi word<input id="g-twi" autocomplete="off" spellcheck="false"></label>
-          <label>English meaning<input id="g-en" autocomplete="off"></label>
+          <label for="g-twi">Twi wording<input id="g-twi" autocomplete="off" spellcheck="false"></label>
+          <label for="g-en">English meaning<input id="g-en" autocomplete="off"></label>
         </div>
         <div class="actions">
-          <button class="btn" data-action="gloss-add">Add to glossary</button>
+          <button class="btn primary" id="g-save" data-action="gloss-add">Add to glossary</button>
+          <button class="btn quiet" id="g-cancel" data-action="gloss-cancel" hidden>Cancel</button>
           <button class="btn" data-action="gloss-export">Export as CSV</button>
         </div>
       </section>
@@ -1168,6 +1170,42 @@ function renderRecords() {
 
 /* ---------- glossary ---------- */
 function getGloss() { return LS.get('os.glossary', []); }
+function renderGlossEditor() {
+  const editing = S.glossEditing != null;
+  $('#g-editor-title').textContent = editing ? 'Edit glossary entry' : 'Add a glossary entry';
+  $('#g-save').textContent = editing ? 'Save changes' : 'Add to glossary';
+  $('#g-cancel').hidden = !editing;
+}
+function resetGlossEditor() {
+  S.glossEditing = null;
+  $('#g-twi').value = ''; $('#g-en').value = '';
+  renderGlossEditor();
+}
+function editGloss(twi) {
+  const entry = getGloss().find(x => x.twi === twi);
+  if (!entry) return toast('This entry is no longer in the glossary.');
+  S.glossEditing = entry.twi;
+  $('#g-twi').value = entry.twi; $('#g-en').value = entry.en;
+  renderGlossEditor(); $('#g-twi').focus();
+}
+function saveGlossEntry() {
+  const twi = $('#g-twi').value.trim(), en = $('#g-en').value.trim();
+  if (!twi || !en) return toast('Enter both the Twi wording and its English meaning.');
+  const editing = S.glossEditing != null;
+  if (editing) {
+    const g = getGloss(), entry = g.find(x => x.twi === S.glossEditing);
+    if (!entry) return toast('This entry is no longer in the glossary. Cancel to add a new entry.');
+    if (g.some(x => x !== entry && x.twi.trim().toLowerCase() === twi.toLowerCase())) {
+      return toast('That Twi wording already has an entry. Edit the existing entry or use different wording.');
+    }
+    entry.twi = twi; entry.en = en; entry.updatedAt = new Date().toISOString();
+    LS.set('os.glossary', g);
+    // Retain the edit if local storage could not save the change.
+    if (!getGloss().some(x => x.twi === twi && x.en === en && x.updatedAt === entry.updatedAt)) return;
+    renderGloss();
+  } else addGloss(twi, en);
+  resetGlossEditor(); toast(editing ? 'Glossary entry updated.' : 'Added to the glossary.');
+}
 function addGloss(twi, en) {
   const g = getGloss(), k = twi.trim().toLowerCase(), e = g.find(x => x.twi.toLowerCase() === k), now = new Date().toISOString();
   if (e) { e.en = en.trim(); e.uses = (e.uses || 0) + 1; e.updatedAt = now; } else g.push({ twi: twi.trim(), en: en.trim(), uses: 1, updatedAt: now });
@@ -1176,9 +1214,10 @@ function addGloss(twi, en) {
 function renderGloss() {
   const g = getGloss().sort((a, b) => a.twi.localeCompare(b.twi));
   $('#gloss-twi').innerHTML = g.map(x => `<option value="${esc(x.twi)}"></option>`).join('');
-  $('#gloss').innerHTML = g.length ? `<div class="tablewrap"><table><thead><tr><th scope="col">Twi</th><th scope="col">English</th><th scope="col">Times used</th><th scope="col"><span class="req">Remove</span></th></tr></thead>
-    <tbody>${g.map((x, i) => `<tr><td>${esc(x.twi)}</td><td>${esc(x.en)}</td><td>${x.uses || 1}</td><td><button class="btn small quiet" data-action="gloss-del" data-twi="${esc(x.twi)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
+  $('#gloss').innerHTML = g.length ? `<div class="tablewrap"><table><thead><tr><th scope="col">Twi</th><th scope="col">English</th><th scope="col">Times used</th><th scope="col">Actions</th></tr></thead>
+    <tbody>${g.map(x => `<tr><td>${esc(x.twi)}</td><td>${esc(x.en)}</td><td>${x.uses || 1}</td><td><div class="actions"><button class="btn small" data-action="gloss-edit" data-twi="${esc(x.twi)}" aria-label="Edit glossary entry: ${esc(x.twi)}">Edit</button><button class="btn small quiet" data-action="gloss-del" data-twi="${esc(x.twi)}" aria-label="Remove glossary entry: ${esc(x.twi)}">Remove</button></div></td></tr>`).join('')}</tbody></table></div>`
     : '<p class="empty">No words yet. Translations you confirm when adding a recording are saved here, or add one below.</p>';
+  renderGlossEditor();
 }
 
 /* ---------- tests ---------- */
@@ -1287,14 +1326,16 @@ document.addEventListener('click', async e => {
       download(`carenote-records-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(S.records, null, 2));
       return toast('Exported. This file is not encrypted, so keep it somewhere safe.');
     }
-    case 'gloss-add': {
-      const twi = $('#g-twi').value.trim(), en = $('#g-en').value.trim();
-      if (!twi || !en) return toast('Enter both the Twi word and its English meaning.');
-      addGloss(twi, en); $('#g-twi').value = ''; $('#g-en').value = ''; return toast('Added to the glossary.');
-    }
+    case 'gloss-add': return saveGlossEntry();
+    case 'gloss-edit': return editGloss(b.dataset.twi);
+    case 'gloss-cancel': resetGlossEditor(); $('#g-twi').focus(); return;
     case 'gloss-del': {
-      if (!confirm('Remove this word from the glossary?')) return;
-      LS.set('os.glossary', getGloss().filter(x => x.twi !== b.dataset.twi)); renderGloss(); return;
+      if (!confirm(`Remove “${b.dataset.twi}” from the glossary?`)) return;
+      const next = getGloss().filter(x => x.twi !== b.dataset.twi);
+      LS.set('os.glossary', next);
+      if (getGloss().some(x => x.twi === b.dataset.twi)) return;
+      if (S.glossEditing === b.dataset.twi) resetGlossEditor();
+      renderGloss(); return toast('Glossary entry removed.');
     }
     case 'gloss-export': {
       const g = getGloss(); if (!g.length) return toast('The glossary is empty.');

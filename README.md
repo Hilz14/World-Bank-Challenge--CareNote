@@ -22,6 +22,8 @@ The consultation uses a single column on desktop and phone. Empty review forms a
 
 For section routing, the clinician can say a section label such as “Complaint”, “Account” or “Medicines”. This uses simple rules. It is not AI summarisation or clinical reasoning.
 
+In **Glossary**, each saved entry has **Edit** and **Remove** controls. Edit loads the Twi wording and English meaning into the form; choose **Save changes** or **Cancel**. Editing preserves the usage count and prevents renaming onto another existing term. Removal requires confirmation. Glossary changes update the suggestions for future input and do not rewrite saved clinical records.
+
 ## Run locally or deploy
 
 The app consists of `index.html` and `sw.js`; there is no build step or backend. Serve the folder from localhost for development, or HTTPS for a real phone. Microphone access and browser cryptography need a secure context. Opening the HTML directly as a local file is insufficient.
