@@ -3,10 +3,10 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 
-// State and markup tests only. No microphone, model, authentication or patient data.
+// State and markup tests with mocked audio and model calls. No real microphone or patient data.
 export function makeHarness(html) {
-  const nodes = new Map(), listeners = new Map(), values = new Map(), intervals = new Map();
-  let clockMs = 0, nextInterval = 1;
+  const nodes = new Map(), listeners = new Map(), values = new Map(), intervals = new Map(), timeouts = new Map();
+  let clockMs = 0, nextInterval = 1, nextTimeout = 1;
   const node = selector => {
     if (!nodes.has(selector)) nodes.set(selector, {
       innerHTML: '', textContent: '', value: '', checked: false, hidden: false,
@@ -27,7 +27,9 @@ export function makeHarness(html) {
     document, env: {}, crypto: webcrypto, TextEncoder, TextDecoder,
     localStorage: { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) },
     indexedDB: { open: () => ({}) }, navigator: { onLine: true },
-    addEventListener() {}, setTimeout: () => 0, clearTimeout() {},
+    addEventListener() {},
+    setTimeout: (callback, delay) => { const id = nextTimeout++; timeouts.set(id, { callback, delay }); return id; },
+    clearTimeout: id => timeouts.delete(id),
     setInterval: callback => { const id = nextInterval++; intervals.set(id, callback); return id; },
     clearInterval: id => intervals.delete(id),
     performance: { now: () => clockMs }, console, Uint8Array, Blob,
@@ -35,7 +37,7 @@ export function makeHarness(html) {
   const module = html.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
   const source = module.replace(/^import .*?;\s*$/m, '').split('/* ---------- start ---------- */')[0];
   vm.runInContext(source, context);
-  return { context, node, nodes, listeners, intervals, setTime: value => { clockMs = value; }, run: source => vm.runInContext(source, context) };
+  return { context, node, nodes, listeners, intervals, timeouts, setTime: value => { clockMs = value; }, run: source => vm.runInContext(source, context) };
 }
 
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -105,9 +107,13 @@ recording.context.MediaRecorder = class {
   start() {}
   stop() { this.ondataavailable({ data: new Blob(['fictional audio fixture']) }); this.onstop(); }
 };
-recording.run('newConsult(); S.asr = {}; S.consult.consent = true; renderAll()');
-assert.equal(await recording.run('recStart("patient")'), true);
-recording.run('renderAll()');
+recording.run('newConsult(); S.key = {}; S.asr = {}; S.consult.consent = true; armIdle(); renderAll()');
+assert.ok([...recording.timeouts.values()].some(timer => timer.delay === 180000));
+const clickRecordingAction = (action, field) => recording.listeners.get('click')({ target: {
+  closest: selector => selector === '[data-action]' ? { dataset: { action, f: field }, disabled: false } : null,
+} });
+await clickRecordingAction('rec-patient');
+assert.equal(recording.timeouts.size, 0, 'Active recording must not schedule a duration cap or inactivity lock');
 assert.equal(recording.intervals.size, 1);
 assert.match(recording.node('#patient').innerHTML, /id="record-elapsed"[^>]*>00:00/);
 assert.ok(recording.node('#patient').innerHTML.indexOf('data-action="mark-twi"') < recording.node('#patient').innerHTML.indexOf('data-action="rec-patient"'));
@@ -117,24 +123,80 @@ for (const callback of recording.intervals.values()) callback();
 assert.equal(recording.node('#record-elapsed').textContent, '00:06');
 recording.listeners.get('keydown')({ key: 'T', target: { matches: () => false }, preventDefault() {} });
 assert.equal(recording.run('R.markers.length'), 1);
+recording.setTime(198000);
+for (const callback of recording.intervals.values()) callback();
+assert.equal(recording.node('#record-elapsed').textContent, '03:18');
+assert.equal(recording.run('R.target'), 'patient');
+assert.ok(recording.run('R.rec'), 'The recording must continue beyond both 45 seconds and three minutes');
+assert.equal(recording.timeouts.size, 0);
 const capture = await recording.run('recStop()');
 assert.equal(capture.markers[0], 6.5);
 assert.equal(tracksStopped, 1);
 assert.equal(recording.intervals.size, 0);
 assert.equal(recording.run('R.clock'), null);
+assert.ok([...recording.timeouts.values()].some(timer => timer.delay === 180000), 'Stopping must restart the normal inactivity lock');
 recording.run('renderAll()');
 assert.doesNotMatch(recording.node('#patient').innerHTML, /id="record-elapsed"|data-action="mark-twi"/);
 assert.match(recording.node('#patient').innerHTML, /Start recording/);
 
 // A second dictation starts from zero and stops its own clock.
-assert.equal(await recording.run('recStart("field:plan")'), true);
-recording.setTime(9500);
+await clickRecordingAction('field-dictate', 'plan');
+assert.equal(recording.timeouts.size, 0);
+recording.run('renderFields()');
+assert.match(recording.node('#fields').innerHTML, /id="field-elapsed-plan"[^>]*>00:00/);
+recording.setTime(264000);
 recording.run('renderFields()');
 for (const callback of recording.intervals.values()) callback();
-assert.equal(recording.node('#field-elapsed-plan').textContent, '00:03');
+assert.equal(recording.node('#field-elapsed-plan').textContent, '01:06');
+assert.doesNotMatch(recording.node('#fields').innerHTML, /00:45/);
 await recording.run('recStop()');
 assert.equal(recording.intervals.size, 0);
 assert.equal(tracksStopped, 2);
+const resumedIdle = [...recording.timeouts.values()].find(timer => timer.delay === 180000);
+assert.ok(resumedIdle);
+await resumedIdle.callback();
+assert.equal(recording.run('S.key'), null);
+assert.equal(recording.node('#app').inert, true, 'The normal inactivity lock must still protect the workspace');
+
+// A pending transcription counts as active use and restores the lock timer on completion.
+const transcribing = makeHarness(html);
+transcribing.context.navigator.mediaDevices = recording.context.navigator.mediaDevices;
+transcribing.context.MediaRecorder = recording.context.MediaRecorder;
+let completeTranscription;
+transcribing.context.captureWork = new Promise(resolve => { completeTranscription = resolve; });
+transcribing.run('newConsult(); S.key = {}; processCapture = () => captureWork');
+await transcribing.run('recStart("patient")');
+const pendingTranscription = transcribing.run('finishPatient()');
+await Promise.resolve();
+assert.equal(transcribing.run('S.busy'), 'patient');
+assert.equal(transcribing.timeouts.size, 0);
+completeTranscription({ rejected: 'Fictional no-speech fixture.' });
+await pendingTranscription;
+assert.equal(transcribing.run('S.busy'), null);
+assert.ok([...transcribing.timeouts.values()].some(timer => timer.delay === 180000));
+await transcribing.run('recStart("field:plan")');
+await transcribing.run('lockNow()');
+assert.equal(transcribing.run('R.rec'), null, 'Lock must still stop an active recording immediately');
+assert.equal(transcribing.run('S.key'), null);
+assert.equal(transcribing.intervals.size, 0);
+assert.equal(transcribing.node('#app').inert, true);
+
+// Longer audio uses the existing overlapping chunks and keeps later word timings for Twi marks.
+const speech = makeHarness(html), asrCalls = [];
+speech.context.audioFixture = new Float32Array(95 * 16000);
+speech.context.asrFixture = async (pcm, options) => {
+  asrCalls.push({ pcm, options });
+  return { text: 'First Later', chunks: [{ text: 'First', timestamp: [0, 0.8] }, { text: 'Later', timestamp: [70, 70.6] }] };
+};
+speech.run('S.asr = asrFixture');
+const longResult = await speech.run('runASR(audioFixture)');
+assert.equal(asrCalls[0].pcm, speech.context.audioFixture);
+assert.deepEqual(JSON.parse(JSON.stringify(asrCalls[0].options)), { chunk_length_s: 30, stride_length_s: 5, return_timestamps: 'word' });
+assert.equal(longResult.chunks[1].start, 70);
+speech.context.longResult = longResult;
+const laterClip = speech.run('buildClip({ ...longResult, pcm: audioFixture, duration: 95, markers: [70.7], suspect: false })');
+assert.equal(laterClip.markers[0].attached, true);
+assert.equal(laterClip.words[1].flag, 'marker');
 
 // The visible section cues must remain compatible with the existing routing.
 recording.run(`newConsult(); S.consult.patientRef = 'FICTIONAL-ROUTING';
@@ -147,6 +209,8 @@ assert.equal(recording.node('#review-panel').open, true);
 assert.match(recording.node('#save').innerHTML, /disabled/);
 
 assert.match(html, /AI drafts English/);
+assert.match(html, /Clinical notes, reviewed by you/);
+assert.doesNotMatch(html, /MAX_CLIP_MS|R\.auto|00:45/);
 assert.match(html, /not AI detection or transcription accuracy/);
 assert.doesNotMatch(html, /https:\/\/fonts\./);
-console.log('PASS: review and save states, edit reset, optional fields, typing mode, model failure, recording clocks, marker controls, six-section routing and retained Twi wording.');
+console.log('PASS: review/save guards, edit reset, optional fields, typing mode, model failure, uncapped recording clocks, active-use and inactivity lock, longer-audio chunking, markers, six-section routing and retained Twi wording.');

@@ -213,7 +213,6 @@ textarea:not(.unconfirmed){background:#F4FAF5;border-color:#AECDB9}
 .record-controls .mark-primary{min-height:64px;font-size:1.125rem;width:100%}
 .record-controls .stop-recording{min-height:44px;font-size:.875rem;border-color:#D9B5AD;color:var(--danger);background:#fff}
 .desktop-shortcut{display:none;font-size:.875rem;color:var(--muted);margin:0}
-.record-limit{font-weight:400;color:var(--muted);font-size:.875rem}
 .record-empty{padding:1.4rem 1rem;border:1px dashed #D7E1D5;border-radius:14px;background:#FAFCF8;text-align:center;margin:1rem 0}
 .record-visual{display:flex;justify-content:center;align-items:center;gap:4px;height:35px;margin-bottom:.65rem;color:var(--primary)}
 .record-visual span{display:block;background:currentColor;width:4px;border-radius:3px;height:10px;opacity:.65}
@@ -336,11 +335,11 @@ details.rec summary{font-size:.875rem;line-height:1.6}
     </header>
     <div class="lock-layout">
       <section class="lock-story" aria-label="How CareNote works">
-        <p class="eyebrow">Made for the consultation</p>
-        <h2>A clear record of the conversation.</h2>
-        <p class="hint">Capture the conversation, check what was heard and save a record you have reviewed. The clinician stays in control.</p>
-        <div class="story-steps" aria-label="Workflow"><span>01 &nbsp; Listen</span><b aria-hidden="true">›</b><span>02 &nbsp; Review</span><b aria-hidden="true">›</b><span>03 &nbsp; Save</span></div>
-        <p class="story-footnote">Replay recordings, check the details and save a record you have reviewed. Your notes stay on this device.</p>
+        <p class="eyebrow">For your clinical workflow</p>
+        <h2>Clinical notes, reviewed by you.</h2>
+        <p class="hint">Record the patient’s account or dictate your notes. Review the transcript, verify clinical details and approve the record before saving.</p>
+        <div class="story-steps" aria-label="Workflow"><span>01 &nbsp; Record</span><b aria-hidden="true">›</b><span>02 &nbsp; Review</span><b aria-hidden="true">›</b><span>03 &nbsp; Save</span></div>
+        <p class="story-footnote">Saved notes are encrypted on this device. Consultation audio is deleted when you save or discard the record.</p>
       </section>
       <div>
         <div class="inner"><div id="lock-body"></div></div>
@@ -490,7 +489,7 @@ details.rec summary{font-size:.875rem;line-height:1.6}
         <ul>
           <li>Records are encrypted on this device (AES-GCM, key derived from the clinician's PIN with PBKDF2, 200,000 rounds) and can only be opened with that PIN.</li>
           <li>Patient recordings are held in memory only and are deleted when the record is saved or discarded. They are never written to storage.</li>
-          <li>The app locks after 3 minutes without use. Five wrong PINs trigger a 30 second wait. Switching clinician discards any unsaved consultation.</li>
+          <li>The app locks after 3 minutes without use. Recording and transcription count as active use; the inactivity timer restarts when they finish. Use Lock to end a session immediately. Five wrong PINs trigger a 30 second wait. Switching clinician discards any unsaved consultation.</li>
           <li>The glossary and the test log are not encrypted. Use fictional test cases and keep names and patient details out of glossary entries.</li>
           <li>Readable record exports are unencrypted. Backup files keep note contents encrypted; their profile metadata, glossary and test logs remain readable.</li>
           <li>A 4 digit PIN has 10,000 possible combinations and could be guessed by someone who copies this device's storage. A 6 digit PIN has 1,000,000. Use 6 to 8 digits.</li>
@@ -520,7 +519,6 @@ const MODEL_ID = 'Xenova/whisper-tiny.en';
 const SR = 16000;
 const LOCK_AFTER_MS = 3 * 60 * 1000;
 const MIN_VOICED_S = 0.4;
-const MAX_CLIP_MS = 45000;
 // Short outputs Whisper is known to produce on silence or noise (see Koenecke et al., FAccT 2024).
 const SUSPECT = ['thank you', 'thank you.', 'thanks for watching', 'thanks for watching!', 'you', 'you.', 'bye', 'bye.'];
 
@@ -591,7 +589,7 @@ async function decryptJSON(key, box) {
 
 /* ---------- state ---------- */
 const S = { asr: null, modelState: 'starting', profile: null, key: null, consult: null, busy: null, fails: 0, waitUntil: 0, records: [] };
-const R = { rec: null, stream: null, chunks: [], t0: 0, markers: [], target: null, auto: null, clock: null };
+const R = { rec: null, stream: null, chunks: [], t0: 0, markers: [], target: null, clock: null };
 
 /* ---------- lock and profiles ---------- */
 function setLocked(on) {
@@ -686,7 +684,12 @@ async function lockNow() {
   S.key = null; setLocked(true); renderLock('signin'); renderAll();
 }
 let idleT;
-function armIdle() { clearTimeout(idleT); idleT = setTimeout(() => { if (S.key) lockNow(); }, LOCK_AFTER_MS); }
+function armIdle() {
+  clearTimeout(idleT); idleT = null;
+  // An ongoing recording or transcription is active consultation work.
+  if (!S.key || R.rec || S.busy) return;
+  idleT = setTimeout(() => { if (S.key) lockNow(); }, LOCK_AFTER_MS);
+}
 ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { if (S.key) armIdle(); }, { passive: true }));
 
 /* ---------- move between devices ---------- */
@@ -766,7 +769,7 @@ async function loadModel() {
 
 /* ---------- audio ---------- */
 function recordingElapsed() {
-  const seconds = Math.min(MAX_CLIP_MS / 1000, Math.max(0, Math.floor((performance.now() - R.t0) / 1000)));
+  const seconds = Math.max(0, Math.floor((performance.now() - R.t0) / 1000));
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 function updateRecordingClock() {
@@ -786,18 +789,18 @@ async function recStart(target) {
   R.chunks = []; R.markers = []; R.target = target;
   R.rec = new MediaRecorder(R.stream);
   R.rec.ondataavailable = e => { if (e.data.size) R.chunks.push(e.data); };
-  R.rec.start(); R.t0 = performance.now(); startRecordingClock();
+  R.rec.start(); R.t0 = performance.now(); startRecordingClock(); armIdle();
   return true;
 }
 function recMark() { if (R.rec) R.markers.push((performance.now() - R.t0) / 1000); }
 function recStop() {
-  clearTimeout(R.auto); stopRecordingClock();
+  stopRecordingClock();
   return new Promise(res => {
     const r = R.rec; if (!r) return res(null);
     r.onstop = () => {
       R.stream.getTracks().forEach(t => t.stop());
       const out = { blob: new Blob(R.chunks, { type: r.mimeType || 'audio/webm' }), markers: R.markers.slice() };
-      R.rec = null; R.stream = null; R.target = null; R.chunks = []; res(out);
+      R.rec = null; R.stream = null; R.target = null; R.chunks = []; armIdle(); res(out);
     };
     r.stop();
   });
@@ -914,15 +917,15 @@ function buildClip(r) {
   return { id: uid(), pcm: r.pcm, duration: r.duration, text: r.text, words, markers, suspect: r.suspect, ack: false, inserted: false, discarded: false, noWords: !r.chunks };
 }
 async function finishPatient() {
-  const cap = await recStop(); S.busy = 'patient'; renderAll();
+  const cap = await recStop(); S.busy = 'patient'; armIdle(); renderAll();
   try {
     const r = await processCapture(cap);
     if (r.rejected) toast(r.rejected); else if (S.consult) S.consult.clips.push(buildClip(r));
   } catch (err) { console.error(err); toast(`Transcription failed on this device (${err.message}). The recording was not kept.`); }
-  finally { S.busy = null; renderAll(); }
+  finally { S.busy = null; armIdle(); renderAll(); }
 }
 async function finishField(fid) {
-  const cap = await recStop(); S.busy = 'field:' + fid; renderAll();
+  const cap = await recStop(); S.busy = 'field:' + fid; armIdle(); renderAll();
   try {
     const r = await processCapture(cap);
     if (r.rejected) toast(r.rejected);
@@ -932,7 +935,7 @@ async function finishField(fid) {
       r.pcm.fill(0);
     }
   } catch (err) { console.error(err); toast(`Transcription failed on this device (${err.message}).`); }
-  finally { S.busy = null; renderAll(); }
+  finally { S.busy = null; armIdle(); renderAll(); }
 }
 // Sorting by spoken section names. A simple rule, not AI: a section name counts only at the start
 // of the recording or straight after punctuation, so ordinary words like "plan" mid-sentence are left alone.
@@ -1051,14 +1054,14 @@ function renderPatient() {
   const disabled = !!why || (R.rec && !recHere) || !!S.busy;
   box.innerHTML = `
     <div class="record-controls">
-      ${recHere ? `<div class="record-status"><span>Recording</span><span><time id="record-elapsed" aria-label="Elapsed recording time">${recordingElapsed()}</time> <span class="record-limit">/ 00:45</span></span></div>
+      ${recHere ? `<div class="record-status"><span>Recording</span><time id="record-elapsed" aria-label="Elapsed recording time">${recordingElapsed()}</time></div>
       <button class="btn twi mark-primary" data-action="mark-twi">Mark Twi word<span class="count" id="mark-count">${R.markers.length}</span></button>
       <button class="btn stop-recording" data-action="rec-patient" aria-pressed="true">Stop and transcribe</button>
       <p class="desktop-shortcut">You can also press <kbd>T</kbd> to mark a Twi word.</p>` : `<button class="btn primary big" data-action="rec-patient" aria-pressed="false" ${disabled ? 'disabled' : ''}>Start recording</button>`}
     </div>
     ${!recHere && !S.busy && why ? `<p class="hint small">${esc(why)}</p>` : ''}
     ${c.mode !== 'typing' ? '<div class="section-cues" aria-label="Spoken section names"><strong class="section-cues-label">Say a section name to organise the note:</strong><span>Complaint</span><span>Account</span><span>Findings</span><span>Plan</span><span>Medicines</span><span>Follow-up</span></div>' : ''}
-    ${S.busy === 'patient' ? '<p class="live" aria-live="polite">Transcribing on this device. This can take a few seconds.</p>' : ''}
+    ${S.busy === 'patient' ? '<p class="live" aria-live="polite">Transcribing this recording on your device. Please wait.</p>' : ''}
     <p class="language-note"><strong>AI drafts English.</strong> Mark and replay Twi, then enter the checked meaning. Audio stays on this device and is removed on save or discard.</p>
     <details class="help"><summary>Dictation help</summary><p>Start a clip with a section name, followed by its text. Text without a section name goes into the patient's account. Section routing uses simple rules.</p><p>Press <strong>Mark Twi word</strong> while recording, or tap a word in the draft. Replay the marked moment, enter the wording and meaning, and check the full clip.</p></details>
     ${c.clips.map((cl, i) => clipHTML(cl, i)).join('')}`;
@@ -1118,7 +1121,7 @@ function renderFields() {
     return `<div class="field">
       <div class="fieldhead"><label for="ta-${f.id}">${f.label}${f.req ? ' <span class="req">(required)</span>' : ''}</label>
       ${canDictate ? `<button class="btn small ${recHere ? 'recording' : ''}" data-action="field-dictate" data-f="${f.id}" aria-pressed="${recHere}" ${dis ? 'disabled' : ''}>${recHere ? 'Stop dictating' : 'Dictate'}</button>` : ''}</div>
-      ${recHere ? `<p class="live">Recording <time id="field-elapsed-${f.id}" aria-label="Elapsed dictation time">${recordingElapsed()}</time> <span class="record-limit">/ 00:45</span></p>` : f.hint ? `<p class="hint small">${f.hint}</p>` : ''}
+      ${recHere ? `<p class="live">Recording <time id="field-elapsed-${f.id}" aria-label="Elapsed dictation time">${recordingElapsed()}</time></p>` : f.hint ? `<p class="hint small">${f.hint}</p>` : ''}
       <textarea id="ta-${f.id}" data-input="field" data-f="${f.id}" rows="${f.id === 'account' ? '5' : '3'}" placeholder="${f.id === 'complaint' ? 'Main reason for the consultation' : f.id === 'account' ? 'The patient’s account, including checked Twi meaning' : 'Add clinician notes if needed'}" class="${st.confirmed ? '' : 'unconfirmed'}">${esc(st.text)}</textarea>
       <div id="meta-${f.id}">${fieldMeta(f.id)}</div></div>`;
   };
@@ -1242,7 +1245,7 @@ document.addEventListener('click', async e => {
     case 'rec-patient':
       if (R.target === 'patient') return finishPatient();
       touch();
-      if (await recStart('patient')) { R.auto = setTimeout(() => { if (R.target === 'patient') finishPatient(); }, MAX_CLIP_MS); renderAll(); }
+      if (await recStart('patient')) renderAll();
       return;
     case 'mark-twi': recMark(); { const c = $('#mark-count'); if (c) c.textContent = R.markers.length; } return;
     case 'word': {
@@ -1268,7 +1271,7 @@ document.addEventListener('click', async e => {
       const fid = b.dataset.f;
       if (R.target === 'field:' + fid) return finishField(fid);
       touch();
-      if (await recStart('field:' + fid)) { R.auto = setTimeout(() => { if (R.target === 'field:' + fid) finishField(fid); }, MAX_CLIP_MS); renderAll(); }
+      if (await recStart('field:' + fid)) renderAll();
       return;
     }
     case 'field-confirm': {

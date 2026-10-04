@@ -12,11 +12,11 @@ Live app: https://hilz14.github.io/World-Bank-Challenge--CareNote/
 2. Choose **Set up a new account**, enter a clinician name and choose a PIN. Use at least six digits. Keep the PIN: there is no reset that can recover the encrypted notes.
 3. Wait for **Speech ready**. Reload once while online so the service worker can control the page. Open the speech status control to see network and clinician details.
 4. In **Consult**, add a fictional patient reference and obtain simulated recording consent. The main recording control remains disabled without consent.
-5. Choose **Start recording**. The six spoken section names stay visible beside the controls. During recording, **Mark Twi word** is the large control, elapsed time is shown, and **Stop and transcribe** sits underneath. Clips stop after 45 seconds. The T shortcut hint appears only on larger screens with a fine pointer.
+5. Choose **Start recording**. The six spoken section names stay visible beside the controls. During recording, **Mark Twi word** is the large control, elapsed time is shown, and **Stop and transcribe** sits underneath. There is no automatic recording duration limit, for either consultation recordings or field dictation. Stop the recording yourself when finished. Longer audio is transcribed in overlapping 30 second sections. Available device memory and browser behaviour still determine how much audio can be processed. The T shortcut hint appears only on larger screens with a fine pointer.
 6. Replay the complete clip, check the draft and enter checked Twi wording and English meaning where applicable. The marks are clinician annotations, not an AI language detector.
 7. Choose **Add to record** to open **Review the record**, edit each completed field and choose **Mark as reviewed**. The review panel also opens when you choose **Typing only**, or can be opened manually. Optional findings, plan, medicines and follow-up are under **Additional clinician notes**. These are clinician notes; the app does not generate medical recommendations.
 8. Choose **Save reviewed record**. Save remains disabled while required information or review is missing. Editing a reviewed field resets its approval.
-9. Find the saved record under **Records**. Use **Lock** when finished. The existing automatic lock is three minutes of inactivity.
+9. Find the saved record under **Records**. Use **Lock** when finished. The automatic lock remains three minutes of inactivity. Recording and transcription count as active use, so the inactivity timer restarts when they finish. Choosing Lock yourself still ends an active recording immediately.
 
 The consultation uses a single column on desktop and phone. Empty review forms are collapsed, and review counts appear only after a field contains text. Consultation controls and secondary text use at least 14 px; text-entry controls use 16 px. The welcome screen keeps its existing layout, with consistent CareNote naming and without repeated release-status labels. Use **CareNote, by GOLDNexus Health** in the submission video.
 
@@ -53,7 +53,7 @@ Run the state checks with an installed Node.js runtime:
 node tests/ui-state.test.mjs
 ```
 
-These checks cover review counts, resetting approval after edits, save gating, optional-field visibility, typing mode, model-failure wording, network wording, recording-clock cleanup, keyboard markers, six-section routing and retention of checked Twi wording. They execute state and markup logic with a small test harness and a mock recorder. They do not exercise a real microphone, speech model, actual authentication, browser storage or offline inference.
+These checks cover review counts, resetting approval after edits, save gating, optional-field visibility, typing mode, model-failure wording, network wording, recording-clock cleanup, recording beyond the former 45 second limit, active-use handling and resumption of the inactivity lock, longer-audio chunking options, keyboard markers, six-section routing and retention of checked Twi wording. They execute state and markup logic with a small test harness and a mock recorder. They do not exercise a real microphone, speech model, actual authentication, browser storage or offline inference.
 
 ## Submission evidence checklist
 
