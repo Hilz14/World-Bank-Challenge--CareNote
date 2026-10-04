@@ -12,6 +12,8 @@ export function makeHarness(html) {
       innerHTML: '', textContent: '', value: '', checked: false, hidden: false,
       open: false, dataset: {}, className: '',
       classList: { add() {}, remove() {}, toggle() {} },
+      setAttribute(name, value) { this[name] = value; },
+      removeAttribute(name) { delete this[name]; },
       focus() {},
     });
     return nodes.get(selector);

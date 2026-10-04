@@ -67,6 +67,14 @@ textarea.unconfirmed{border-style:dashed;background:#FAFBFA}
 .w.flag{font-style:normal;font-weight:700;background:var(--twi-bg);border-bottom:3px solid var(--twi-line);color:var(--twi-ink);border-radius:3px}
 .w.flag::after{content:"Twi";font-size:.62em;vertical-align:super;margin-left:.2em}
 .w:disabled{cursor:default}
+.w.needs-review{font-style:normal;background:#FFF0EB;border-bottom:3px solid #B7492B;border-radius:3px}
+.w.needs-review::before{content:"Check";font-size:.875rem;font-weight:700;color:#96391F;margin-right:.3em}
+.word-review{border-left:3px solid #B7492B;background:#FFF4EF;padding:.65rem .75rem;border-radius:0 10px 10px 0;font-size:.875rem}
+.word-review.checked{border-left-color:var(--ok);background:#EFF6EE}
+.word-review label{margin:.5rem 0}
+.word-checks{display:grid;gap:.65rem;margin:.75rem 0}
+.auto-check{font-size:.875rem;color:var(--muted);margin:.6rem 0}
+.auto-check strong{color:var(--ink)}
 .flags{margin-top:.75rem;display:grid;gap:.75rem}
 .flagrow{border-left:4px solid var(--twi-line);background:#FFF9EC;padding:.6rem .75rem;border-radius:0 var(--r-s) var(--r-s) 0}
 .flaghead{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
@@ -477,6 +485,7 @@ details.rec summary{font-size:.875rem;line-height:1.6}
           <li>Turns the consultation into a written record, using a speech model that runs on this device.</li>
           <li>Sorts the text into record sections when the clinician says a section name, such as "Medicines". This is a simple rule, not AI, and the clinician sees where everything will go before adding it.</li>
           <li>Lets the clinician highlight Twi words the patient used, replay just that moment, and write the meaning. Confirmed translations build a local glossary.</li>
+          <li>Flags words with lower speech-model scores for clinician review. Each flagged word must be replayed and its wording or Twi meaning confirmed before adding the recording.</li>
         </ul>
         <h3>What it does not do</h3>
         <ul>
@@ -484,14 +493,14 @@ details.rec summary{font-size:.875rem;line-height:1.6}
           <li>It does not decide by meaning which section text belongs in. Only spoken section names move text.</li>
           <li>It does not translate Twi automatically. A clinician translates every highlighted word.</li>
           <li>It does not send anything to the patient's phone.</li>
-          <li>It does not score its own confidence word by word. Highlights come from the clinician's marks and taps.</li>
+          <li>Review flags are not a guarantee of accuracy. A high-scoring word can still be wrong, and omitted speech cannot be flagged. Twi highlights remain clinician annotations.</li>
           <li>It does not sync to DHIS2. Records can be exported as a file only.</li>
         </ul>
         <h3>Where data sits</h3>
         <ul>
           <li>Records are encrypted on this device (AES-GCM, key derived from the clinician's PIN with PBKDF2, 200,000 rounds) and can only be opened with that PIN.</li>
           <li>Patient recordings are held in memory only and are deleted when the record is saved or discarded. They are never written to storage.</li>
-          <li>The app locks after 3 minutes without use. Recording and transcription count as active use; the inactivity timer restarts when they finish. Use Lock to end a session immediately. Five wrong PINs trigger a 30 second wait. Switching clinician discards any unsaved consultation.</li>
+          <li>The app locks after 3 minutes without use. Recording, transcription and audio review count as active use; the inactivity timer restarts when they finish. Use Lock to end a session immediately and stop playback. Five wrong PINs trigger a 30 second wait. Switching clinician discards any unsaved consultation.</li>
           <li>The glossary and the test log are not encrypted. Use fictional test cases and keep names and patient details out of glossary entries.</li>
           <li>Readable record exports are unencrypted. Backup files keep note contents encrypted; their profile metadata, glossary and test logs remain readable.</li>
           <li>A 4 digit PIN has 10,000 possible combinations and could be guessed by someone who copies this device's storage. A 6 digit PIN has 1,000,000. Use 6 to 8 digits.</li>
@@ -501,6 +510,7 @@ details.rec summary{font-size:.875rem;line-height:1.6}
           <li>Speech model: <a href="https://huggingface.co/Xenova/whisper-tiny.en" target="_blank" rel="noopener noreferrer">Xenova/whisper-tiny.en</a>, an ONNX conversion of OpenAI Whisper Tiny English. The converted model card declares Apache 2.0.</li>
           <li>Model files reported by the loader: <span id="about-model"></span> This excludes other app and runtime assets.</li>
           <li>Automatic Twi transcription is unsupported. Accuracy on Ghanaian English and mixed speech needs direct testing; check omissions and correction time.</li>
+          <li>Automatic review uses the lowest decoder token probability within each word, with an initial threshold of 0.5. These scores and the threshold have not been clinically calibrated. No accuracy percentage is shown. If scores are unavailable, the clinician must replay and confirm the full recording.</li>
         </ul>
         <h3>Offline status</h3>
         <p id="about-offline"></p>
@@ -521,6 +531,8 @@ const MODEL_ID = 'Xenova/whisper-tiny.en';
 const SR = 16000;
 const LOCK_AFTER_MS = 3 * 60 * 1000;
 const MIN_VOICED_S = 0.4;
+// Initial review threshold, not a calibrated probability that a word is correct.
+const WORD_REVIEW_THRESHOLD = 0.5;
 // Short outputs Whisper is known to produce on silence or noise (see Koenecke et al., FAccT 2024).
 const SUSPECT = ['thank you', 'thank you.', 'thanks for watching', 'thanks for watching!', 'you', 'you.', 'bye', 'bye.'];
 
@@ -683,13 +695,15 @@ function enterApp(p, key) {
 }
 async function lockNow() {
   if (R.rec) { await recStop(); toast('Recording stopped because the app locked.'); }
+  stopPlayback();
   S.key = null; setLocked(true); renderLock('signin'); renderAll();
+  armIdle();
 }
 let idleT;
 function armIdle() {
   clearTimeout(idleT); idleT = null;
-  // An ongoing recording or transcription is active consultation work.
-  if (!S.key || R.rec || S.busy) return;
+  // Recording, transcription and audio playback are active work.
+  if (!S.key || R.rec || S.busy || playbackActive) return;
   idleT = setTimeout(() => { if (S.key) lockNow(); }, LOCK_AFTER_MS);
 }
 ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { if (S.key) armIdle(); }, { passive: true }));
@@ -841,35 +855,139 @@ function wav(x) {
   return new Blob([b], { type: 'audio/wav' });
 }
 // Plays part of a clip through a normal audio element (works with the iPhone silent switch, unlike Web Audio).
-let currentAudio = null;
+let currentAudio = null, playbackActive = false;
+function stopPlayback() {
+  if (!currentAudio) return;
+  currentAudio.pause(); URL.revokeObjectURL(currentAudio.src); currentAudio = null;
+  playbackActive = false; armIdle();
+}
 async function playPCM(x, from = 0, to = null) {
-  if (!x) return toast('This recording has been deleted.');
+  if (!x) { toast('This recording has been deleted.'); return false; }
   const total = x.length / SR;
   let a = Number.isFinite(from) ? Math.max(0, from) : 0;
   let b = Number.isFinite(to) ? Math.min(total, to) : total;
   if (b - a < 0.3) { a = Math.max(0, a - 0.5); b = Math.min(total, a + 1.5); }
   const seg = x.slice(Math.floor(a * SR), Math.floor(b * SR));
-  if (!seg.length) return toast('There is no audio at that point in the clip.');
+  if (!seg.length) { toast('There is no audio at that point in the clip.'); return false; }
   try {
-    if (currentAudio) { currentAudio.pause(); URL.revokeObjectURL(currentAudio.src); }
+    stopPlayback();
     currentAudio = new Audio(URL.createObjectURL(wav(seg)));
-    await currentAudio.play();
+    const player = currentAudio;
+    const completed = new Promise(resolve => {
+      player.addEventListener('ended', () => resolve(true), { once: true });
+      player.addEventListener('pause', () => { if (!player.ended) resolve(false); }, { once: true });
+      player.addEventListener('error', () => resolve(false), { once: true });
+    });
+    await player.play();
+    if (currentAudio !== player) return false; // locked/discarded while the browser was starting audio
+    playbackActive = true; armIdle();
+    try { return await completed; }
+    finally { if (currentAudio === player) { playbackActive = false; armIdle(); } }
   } catch (e) {
     console.error(e);
     toast(`The phone did not play the audio (${e.message}). Check the volume and try again.`);
+    return false;
   }
 }
 
 /* ---------- speech recognition ---------- */
+// Transformers.js 3.0.2 does not return output_scores. Observe its decoder logits
+// without changing them, then attach scores during its own word/chunk alignment.
+// Only one next-token tensor is held at a time; no second model or inference pass.
+function tokenProbability(logits, token) {
+  const data = logits?.data, size = logits?.dims?.at(-1);
+  if (!data || !Number.isInteger(size) || data.length !== size || token < 0 || token >= size) return null;
+  let max = -Infinity;
+  for (const x of data) {
+    if (Number.isNaN(x) || x === Infinity) return null;
+    if (x > max) max = x;
+  }
+  if (!Number.isFinite(max) || !Number.isFinite(data[token])) return null;
+  let sum = 0;
+  for (const x of data) sum += Math.exp(x - max);
+  const p = Math.exp(data[token] - max) / sum;
+  return Number.isFinite(p) ? p : null;
+}
+function tokenScoreCapture(forward) {
+  const scores = new Map(); let pending = null, index = 0;
+  return {
+    scores,
+    observe(ids, logits) { pending = logits; return logits; },
+    streamer: {
+      put(ids) {
+        if (!pending) index = ids[0]?.length || 0; // initial decoder prompt
+        else {
+          const token = Number(ids[0]?.[0]);
+          scores.set(index++, { token, probability: tokenProbability(pending, token) });
+          pending = null;
+        }
+        forward?.put(ids);
+      },
+      end() { pending = null; forward?.end(); },
+    },
+  };
+}
+const scoreKey = (token, start) => `${Number(token)}@${Number(start).toFixed(2)}`;
+const scoreTextToken = text => /[\p{L}\p{N}]/u.test(text);
+async function scoredASR(pcm, opts) {
+  const model = S.asr.model, tokenizer = S.asr.tokenizer;
+  if (!model?.generate || !tokenizer?.collateWordTimestamps || !tokenizer?.combineTokensIntoWords || !Number.isFinite(tokenizer.timestamp_begin)) {
+    return S.asr(pcm, { ...opts, return_timestamps: 'word' });
+  }
+  const generate = model.generate, collate = tokenizer.collateWordTimestamps;
+  const ownGenerate = Object.hasOwn(model, 'generate'), ownCollate = Object.hasOwn(tokenizer, 'collateWordTimestamps');
+  const tokenScores = new Map(), special = new Set(tokenizer.all_special_ids.map(Number));
+  let chunkIndex = 0;
+  model.generate = async function (options) {
+    const capture = tokenScoreCapture(options.streamer);
+    const offset = chunkIndex++ * ((opts.chunk_length_s || 0) - 2 * (opts.stride_length_s || 0));
+    const output = await generate.call(this, {
+      ...options,
+      logits_processor: [...(options.logits_processor || []), capture.observe],
+      streamer: capture.streamer,
+    });
+    const tokens = output.sequences?.tolist()[0], times = output.token_timestamps?.tolist()[0];
+    if (tokens && times) for (let i = 0; i < tokens.length; i++) {
+      const token = Number(tokens[i]), score = capture.scores.get(i);
+      if (special.has(token) || token >= tokenizer.timestamp_begin || !Number.isFinite(times[i]) || score?.token !== token || !Number.isFinite(score.probability)) continue;
+      const key = scoreKey(token, Math.round((Math.round(times[i] * 100) / 100 + offset) * 100) / 100);
+      // Identical tokens may have the same aligned moment in overlapping chunks.
+      // Keep the lower score conservatively rather than inventing an average.
+      tokenScores.set(key, Math.min(tokenScores.get(key) ?? 1, score.probability));
+    }
+    capture.scores.clear();
+    return output;
+  };
+  tokenizer.collateWordTimestamps = function (tokens, timings, language) {
+    const words = collate.call(this, tokens, timings, language);
+    const [, , indices] = this.combineTokensIntoWords(tokens, language);
+    return words.map((word, wi) => {
+      const scored = indices[wi].filter(i => scoreTextToken(this.decode([tokens[i]])));
+      const probabilities = scored.map(i => tokenScores.get(scoreKey(tokens[i], timings[i][0])));
+      const modelScore = probabilities.length && probabilities.every(Number.isFinite) ? Math.min(...probabilities) : null;
+      return { ...word, modelScore };
+    });
+  };
+  try { return await S.asr(pcm, { ...opts, return_timestamps: 'word' }); }
+  finally {
+    if (ownGenerate) model.generate = generate; else delete model.generate;
+    if (ownCollate) tokenizer.collateWordTimestamps = collate; else delete tokenizer.collateWordTimestamps;
+    tokenScores.clear();
+  }
+}
 async function runASR(pcm) {
   if (!S.asr) throw new Error('the speech model is not loaded');
   const opts = pcm.length / SR > 30 ? { chunk_length_s: 30, stride_length_s: 5 } : {};
   let out, words = true;
-  try { out = await S.asr(pcm, { ...opts, return_timestamps: 'word' }); }
-  catch (e) { console.warn('Word timings unavailable, using plain transcription.', e); words = false; out = await S.asr(pcm, opts); }
+  try { out = await scoredASR(pcm, opts); }
+  catch (e) {
+    console.warn('Automatic word checks unavailable, retrying ordinary transcription.', e);
+    try { out = await S.asr(pcm, { ...opts, return_timestamps: 'word' }); }
+    catch (timingError) { console.warn('Word timings unavailable, using plain transcription.', timingError); words = false; out = await S.asr(pcm, opts); }
+  }
   const text = (out.text || '').trim();
   const chunks = words && Array.isArray(out.chunks)
-    ? out.chunks.map(c => ({ text: (c.text || '').trim(), start: c.timestamp?.[0] ?? null, end: c.timestamp?.[1] ?? null })).filter(c => c.text)
+    ? out.chunks.map(c => ({ text: (c.text || '').trim(), start: c.timestamp?.[0] ?? null, end: c.timestamp?.[1] ?? null, modelScore: Number.isFinite(c.modelScore) && c.modelScore >= 0 && c.modelScore <= 1 ? c.modelScore : null })).filter(c => c.text)
     : null;
   return { text, chunks };
 }
@@ -896,14 +1014,15 @@ function newConsult() {
 function consultHasContent() {
   const c = S.consult; return !!(c.patientRef || c.clips.length || Object.values(c.fields).some(f => f.text.trim()));
 }
-function wipeAudio() { for (const cl of S.consult?.clips || []) { if (cl.pcm) { cl.pcm.fill(0); cl.pcm = null; } } }
+function wipeAudio() { stopPlayback(); for (const cl of S.consult?.clips || []) { if (cl.pcm) { cl.pcm.fill(0); cl.pcm = null; } } }
 function discardConsult() { wipeAudio(); newConsult(); }
 function touch() { if (!S.consult.firstInputAt) S.consult.firstInputAt = Date.now(); }
 
 function buildClip(r) {
+  const hasScores = !!r.chunks?.some(w => Number.isFinite(w.modelScore));
   const words = r.chunks
-    ? r.chunks.map(w => ({ text: w.text, start: w.start, end: w.end, flag: null, twi: '', en: '' }))
-    : r.text.split(/\s+/).filter(Boolean).map(t => ({ text: t, start: null, end: null, flag: null, twi: '', en: '' }));
+    ? r.chunks.map(w => ({ text: w.text, heard: w.text, start: w.start, end: w.end, modelScore: w.modelScore, needsReview: hasScores && (!Number.isFinite(w.modelScore) || w.modelScore < WORD_REVIEW_THRESHOLD), checked: false, replayed: false, flag: null, twi: '', en: '' }))
+    : r.text.split(/\s+/).filter(Boolean).map(t => ({ text: t, heard: t, start: null, end: null, modelScore: null, needsReview: false, checked: false, replayed: false, flag: null, twi: '', en: '' }));
   const markers = r.markers.map(t => ({ t, attached: false, dismissed: false, twi: '', en: '' }));
   if (r.chunks) {
     // Each mark highlights the one word that ends closest to it, within 2 s before or 0.5 s after the press.
@@ -916,7 +1035,7 @@ function buildClip(r) {
       if (best) { best.flag = best.flag || 'marker'; m.attached = true; }
     }
   }
-  return { id: uid(), pcm: r.pcm, duration: r.duration, text: r.text, words, markers, suspect: r.suspect, ack: false, inserted: false, discarded: false, noWords: !r.chunks };
+  return { id: uid(), pcm: r.pcm, duration: r.duration, text: r.text, words, markers, suspect: r.suspect, fullReviewRequired: !hasScores, replayed: false, ack: false, inserted: false, discarded: false, noWords: !r.chunks };
 }
 async function finishPatient() {
   const cap = await recStop(); S.busy = 'patient'; armIdle(); renderAll();
@@ -932,12 +1051,16 @@ async function finishField(fid) {
     const r = await processCapture(cap);
     if (r.rejected) toast(r.rejected);
     else {
-      const st = S.consult.fields[fid];
-      st.text = (st.text.trim() ? st.text.trimEnd() + ' ' : '') + r.text; st.confirmed = false; if (r.suspect) st.warn = true;
-      r.pcm.fill(0);
+      const cl = buildClip(r); cl.targetField = fid;
+      S.consult.clips.push(cl);
+      toast(`Dictation ready for ${FIELDS.find(f => f.id === fid).label}. Check Recording ${S.consult.clips.length}, then add it to the record.`);
     }
   } catch (err) { console.error(err); toast(`Transcription failed on this device (${err.message}).`); }
-  finally { S.busy = null; armIdle(); renderAll(); }
+  finally {
+    S.busy = null; armIdle(); renderAll();
+    const latest = S.consult?.clips.at(-1);
+    if (latest?.targetField === fid) $('#clip-' + latest.id)?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+  }
 }
 // Sorting by spoken section names. A simple rule, not AI: a section name counts only at the start
 // of the recording or straight after punctuation, so ordinary words like "plan" mid-sentence are left alone.
@@ -971,7 +1094,8 @@ function tidy(s) {
 // Returns [{field, text}] with Twi words replaced by their English meaning, one entry per field.
 function clipRouting(cl, forPreview) {
   const out = {};
-  for (const seg of splitSections(cl.words)) {
+  const sections = cl.targetField ? [{ field: cl.targetField, idx: cl.words.map((_, i) => i) }] : splitSections(cl.words);
+  for (const seg of sections) {
     const t = tidy(seg.idx.map(i => { const w = cl.words[i];
       if (!w.flag) return w.text;
       return forPreview ? `${w.text} [Twi]` : `${w.en.trim()} [Twi: ${w.twi.trim() || 'not written'}]`;
@@ -988,8 +1112,11 @@ function clipRouting(cl, forPreview) {
 }
 function clipBlockers(cl) {
   const missing = cl.words.filter(w => w.flag && !w.en.trim()).length + cl.markers.filter(m => !m.attached && !m.dismissed && !m.en.trim()).length;
-  if (cl.suspect && !cl.ack) return 'Replay the recording and tick the check box before adding it.';
+  if (cl.suspect && (!cl.replayed || !cl.ack)) return 'Replay the recording and tick the check box before adding it.';
+  if (cl.fullReviewRequired && (!cl.replayed || !cl.ack)) return 'Word scores are unavailable. Replay the full recording and confirm its wording before adding it.';
   if (missing) return `Write the English meaning for ${missing} Twi item${missing > 1 ? 's' : ''}, or remove the highlight, first.`;
+  const unchecked = cl.words.filter(w => w.needsReview && (!w.checked || !w.replayed)).length;
+  if (unchecked) return `Replay and confirm ${unchecked} flagged word${unchecked === 1 ? '' : 's'} before adding this recording.`;
   return null;
 }
 function insertClip(cl) {
@@ -1030,7 +1157,11 @@ async function saveConsult() {
     mode: c.mode, consentForRecording: c.consent,
     fields: Object.fromEntries(Object.entries(c.fields).filter(([, v]) => v.text.trim()).map(([k, v]) => [k, v.text.trim()])),
     twiTerms,
-    tool: { speechModel: MODEL_ID, patientClips: c.clips.filter(x => x.inserted).length },
+    tool: { speechModel: MODEL_ID, patientClips: c.clips.filter(x => x.inserted && !x.targetField).length,
+      dictationClips: c.clips.filter(x => x.inserted && x.targetField).length,
+      wordReview: { method: 'lowest-token-softmax-v1', threshold: WORD_REVIEW_THRESHOLD,
+        flagged: c.clips.filter(x => x.inserted).reduce((n, cl) => n + cl.words.filter(w => w.needsReview).length, 0),
+        fullClipFallbacks: c.clips.filter(x => x.inserted && x.fullReviewRequired).length } },
   };
   try {
     await idbPut('records', { id: rec.id, owner: S.profile.id, savedAt: rec.savedAt, box: await encryptJSON(S.key, rec) });
@@ -1065,21 +1196,24 @@ function renderPatient() {
     ${c.mode !== 'typing' ? '<div class="section-cues" aria-label="Spoken section names"><strong class="section-cues-label">Say a section name to organise the note:</strong><span>Complaint</span><span>Account</span><span>Findings</span><span>Plan</span><span>Medicines</span><span>Follow-up</span></div>' : ''}
     ${S.busy === 'patient' ? '<p class="live" aria-live="polite">Transcribing this recording on your device. Please wait.</p>' : ''}
     <p class="language-note"><strong>AI drafts English.</strong> Mark and replay Twi, then enter the checked meaning. Audio stays on this device and is removed on save or discard.</p>
-    <details class="help"><summary>Dictation help</summary><p>Start a clip with a section name, followed by its text. Text without a section name goes into the patient's account. Section routing uses simple rules.</p><p>Press <strong>Mark Twi word</strong> while recording, or tap a word in the draft. Replay the marked moment, enter the wording and meaning, and check the full clip.</p></details>
+    <details class="help"><summary>Dictation help</summary><p>Start a clip with a section name, followed by its text. Text without a section name goes into the patient's account. Section routing uses simple rules.</p><p>Words labelled <strong>Check</strong> need review. Replay each one, correct the wording if needed and confirm it. A word without a flag can still be wrong; check the full draft.</p><p>Press <strong>Mark Twi word</strong> while recording. After transcription, tap an unflagged word to mark Twi or choose <strong>Mark as Twi</strong> within its review controls. Replay the marked moment, enter the wording and meaning, and check the full clip. Dictation from a record field uses the same review step before being added to that field.</p></details>
     ${c.clips.map((cl, i) => clipHTML(cl, i)).join('')}`;
 }
 function clipHTML(cl, i) {
   if (cl.discarded) return '';
   const ro = cl.inserted;
   const flagged = cl.words.map((w, wi) => ({ w, wi })).filter(x => x.w.flag);
+  const uncertain = cl.words.map((w, wi) => ({ w, wi })).filter(x => x.w.needsReview && !x.w.flag);
   const loose = cl.markers.map((m, mi) => ({ m, mi })).filter(x => !x.m.attached && !x.m.dismissed);
-  return `<article class="clip" aria-label="Recording ${i + 1}">
-    <div class="cliphead"><h3>Recording ${i + 1}</h3><span class="meta">${cl.duration.toFixed(1)} s${cl.noWords ? ', no word timings' : ''}</span>
+  return `<article class="clip" id="clip-${cl.id}" aria-label="Recording ${i + 1}">
+    <div class="cliphead"><h3>Recording ${i + 1}${cl.targetField ? ': ' + esc(FIELDS.find(f => f.id === cl.targetField).label) + ' dictation' : ''}</h3><span class="meta">${cl.duration.toFixed(1)} s${cl.noWords ? ', no word timings' : ''}</span>
       <span class="tag ${ro ? 'ok' : ''}">${ro ? 'Added for review' : 'Draft: check against audio'}</span></div>
-    ${cl.suspect ? `<div class="warn" role="alert"><p>This text may have been invented by the speech model, which happens most on silence and long pauses. Replay the clip and check it.</p>
-      <label class="check"><input type="checkbox" data-input="clip-ack" data-clip="${i}" ${cl.ack ? 'checked' : ''} ${ro ? 'disabled' : ''}> I replayed it and the text matches what was said</label></div>` : ''}
-    <p class="transcript">${cl.words.length ? cl.words.map((w, wi) => `<button type="button" class="w ${w.flag ? 'flag' : ''}" data-action="word" data-clip="${i}" data-w="${wi}" aria-pressed="${!!w.flag}" ${ro ? 'disabled' : ''}>${esc(w.text)}</button>`).join(' ') : '<em>No words recognised.</em>'}</p>
-    ${ro ? '' : '<p class="hint small">Tap any word to mark it as Twi. Marked words need an English meaning before the recording can be added.</p>'}
+    ${cl.suspect ? '<div class="warn" role="alert"><p>The speech model may have added wording that was not spoken. Replay the full recording and check the transcript.</p></div>' : ''}
+    <div class="auto-check" id="clip-checks-${i}" role="status">${clipCheckSummary(cl)}</div>
+    ${cl.suspect || cl.fullReviewRequired ? `<label class="check"><input type="checkbox" id="clip-ack-${i}" data-input="clip-ack" data-clip="${i}" ${cl.ack ? 'checked' : ''} ${ro || !cl.replayed ? 'disabled' : ''}> I replayed the full recording and checked the transcript${!cl.replayed && !ro ? ' (use Replay clip first)' : ''}</label>` : ''}
+    <p class="transcript">${cl.words.length ? cl.words.map((w, wi) => `<button type="button" id="clip-word-${i}-${wi}" class="w ${w.flag ? 'flag' : ''} ${w.needsReview && !w.checked ? 'needs-review' : ''}" data-action="${w.needsReview && !w.checked ? 'review-word' : 'word'}" data-clip="${i}" data-w="${wi}" aria-label="${esc(wordButtonLabel(w))}" ${w.needsReview && !w.checked ? '' : `aria-pressed="${!!w.flag}"`} ${ro ? 'disabled' : ''}>${esc(w.text || '(removed)')}</button>`).join(' ') : '<em>No words recognised.</em>'}</p>
+    ${ro ? '' : '<p class="hint small">Tap a Check word to open its review. Other words can be tapped to mark Twi. Every Twi mark needs a checked English meaning.</p>'}
+    ${uncertain.length ? `<div class="word-checks" aria-label="Words requiring clinician review">${ro ? '' : '<p class="hint">Replay each flagged word before confirming. Leave its wording blank to omit a word that was not spoken.</p>'}${uncertain.map(({ w, wi }) => wordReviewRow(i, wi, w, ro)).join('')}</div>` : ''}
     ${(() => { const rs = clipRouting(cl, true); return rs.length ? `<div class="route"><p class="small"><strong>${ro ? 'Added to' : 'Where this will go'}</strong></p><ul>${rs.map(r => `<li><strong>${FIELDS.find(f => f.id === r.field).label}:</strong> ${esc(r.text)}</li>`).join('')}</ul></div>` : ''; })()}
     ${flagged.length || loose.length ? `<div class="flags">
       ${flagged.map(({ w, wi }) => flagRow(i, 'w', wi, `Heard as \u201C${esc(w.text)}\u201D`, w, w.flag === 'marker' ? 'Suggested from your Twi mark' : 'Marked by you', ro)).join('')}
@@ -1091,16 +1225,55 @@ function clipHTML(cl, i) {
       <button class="btn quiet" data-action="clip-discard" data-clip="${i}">Discard recording</button>`}
     </div></article>`;
 }
+function clipCheckSummary(cl) {
+  if (cl.fullReviewRequired) return '<strong>Automatic word checks unavailable.</strong> Replay and confirm the full recording before adding it.';
+  const flagged = cl.words.filter(w => w.needsReview), pending = flagged.filter(w => !w.checked || !w.replayed).length;
+  if (pending) return `<strong>${pending} word${pending === 1 ? '' : 's'} need${pending === 1 ? 's' : ''} review.</strong> Replay, correct if needed and confirm each flag.`;
+  if (flagged.length) return `<strong>${flagged.length} flagged word${flagged.length === 1 ? '' : 's'} reviewed.</strong> Check the rest of the draft before adding it.`;
+  return '<strong>No words flagged by the model.</strong> Check the full draft; unflagged words can still be wrong.';
+}
+function wordCheckButton(ci, wi, w, ro) {
+  return `<button class="btn small ${w.checked ? 'ok' : ''}" id="word-check-${ci}-${wi}" data-action="word-check" data-clip="${ci}" data-idx="${wi}" aria-pressed="${!!w.checked}" ${ro || !w.replayed || (w.flag && !w.en.trim()) ? 'disabled' : ''}>${w.checked ? 'Reviewed' : w.flag ? 'Confirm Twi meaning' : 'Confirm wording'}</button>`;
+}
+function wordButtonLabel(w) {
+  return `${w.text || 'Word removed'}; ${w.needsReview && !w.checked ? 'needs review, open review controls' : `tap to ${w.flag ? 'remove' : 'add'} Twi mark`}`;
+}
+function wordReviewRow(ci, wi, w, ro) {
+  return `<div class="word-review ${w.checked ? 'checked' : ''}" id="word-review-${ci}-${wi}">
+    <div class="flaghead"><strong>Draft: “${esc(w.heard)}”</strong><span class="meta">${Number.isFinite(w.modelScore) ? 'Lower model score' : 'Score unavailable'}</span>
+      <button class="btn small" id="word-replay-${ci}-${wi}" data-action="word-replay" data-clip="${ci}" data-idx="${wi}" ${w.start == null ? 'title="No word timing: replay plays the full recording"' : ''}>Replay</button>
+      ${ro ? '' : `<button class="btn small quiet" data-action="word" data-clip="${ci}" data-w="${wi}">Mark as Twi</button>`}</div>
+    <label>Checked wording<input data-input="word-edit" data-clip="${ci}" data-idx="${wi}" value="${esc(w.text)}" ${ro ? 'disabled' : ''} autocomplete="off"></label>
+    ${wordCheckButton(ci, wi, w, ro)}</div>`;
+}
+function updateWordReview(ci, wi) {
+  const cl = S.consult.clips[ci], w = cl.words[wi], b = $('#word-check-' + ci + '-' + wi);
+  if (b) {
+    b.textContent = w.checked ? 'Reviewed' : w.flag ? 'Confirm Twi meaning' : 'Confirm wording';
+    b.classList.toggle('ok', !!w.checked); b.setAttribute('aria-pressed', String(!!w.checked));
+    b.disabled = cl.inserted || !w.replayed || !!(w.flag && !w.en.trim());
+  }
+  $('#word-review-' + ci + '-' + wi)?.classList.toggle('checked', !!w.checked);
+  const word = $('#clip-word-' + ci + '-' + wi);
+  if (word) {
+    word.textContent = w.text || '(removed)'; word.classList.toggle('needs-review', !!(w.needsReview && !w.checked));
+    word.dataset.action = w.needsReview && !w.checked ? 'review-word' : 'word';
+    if (w.needsReview && !w.checked) word.removeAttribute('aria-pressed'); else word.setAttribute('aria-pressed', String(!!w.flag));
+    word.setAttribute('aria-label', wordButtonLabel(w));
+  }
+  $('#clip-checks-' + ci).innerHTML = clipCheckSummary(cl);
+}
 function flagRow(ci, kind, idx, title, item, src, ro) {
   const d = ro ? 'disabled' : '';
-  return `<div class="flagrow">
+  return `<div class="flagrow" ${kind === 'w' && item.needsReview ? `id="word-review-${ci}-${idx}"` : ''}>
     <div class="flaghead"><strong>${title}</strong><span class="meta">${src}</span>
-      <button class="btn small" data-action="${kind === 'w' ? 'word-replay' : 'mark-replay'}" data-clip="${ci}" data-idx="${idx}">Replay</button>
+      <button class="btn small" ${kind === 'w' ? `id="word-replay-${ci}-${idx}"` : ''} data-action="${kind === 'w' ? 'word-replay' : 'mark-replay'}" data-clip="${ci}" data-idx="${idx}">Replay</button>
+      ${kind === 'w' && !ro ? `<button class="btn small quiet" data-action="word" data-clip="${ci}" data-w="${idx}">Remove Twi mark</button>` : ''}
       ${kind === 'm' && !ro ? `<button class="btn small quiet" data-action="mark-dismiss" data-clip="${ci}" data-idx="${idx}">Dismiss mark</button>` : ''}</div>
     <div class="pair">
       <label>Twi wording <span class="req">(clinician entered)</span><input list="gloss-twi" data-input="flag" data-kind="${kind}" data-key="twi" data-clip="${ci}" data-idx="${idx}" value="${esc(item.twi)}" ${d} autocomplete="off" spellcheck="false"></label>
       <label>Checked English meaning<input data-input="flag" data-kind="${kind}" data-key="en" data-clip="${ci}" data-idx="${idx}" value="${esc(item.en)}" ${d} autocomplete="off"></label>
-    </div></div>`;
+    </div>${kind === 'w' && item.needsReview ? `<p class="hint">Needs review: confirm this Twi meaning after replay.</p>${wordCheckButton(ci, idx, item, ro)}` : ''}</div>`;
 }
 function checkTokens(t) {
   const re = /\b\d+(?:\.\d+)?\s?(?:mg|mcg|g|ml|tabs?|tablets?|capsules?|caps|times?|days?|weeks?|hours?|hrs?|units?|%)?/gi;
@@ -1287,23 +1460,49 @@ document.addEventListener('click', async e => {
       if (await recStart('patient')) renderAll();
       return;
     case 'mark-twi': recMark(); { const c = $('#mark-count'); if (c) c.textContent = R.markers.length; } return;
+    case 'review-word': {
+      const cl = clipOf(b); if (cl.inserted || cl.discarded) return;
+      $('#word-review-' + b.dataset.clip + '-' + b.dataset.w)?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+      $('#word-replay-' + b.dataset.clip + '-' + b.dataset.w)?.focus(); return;
+    }
     case 'word': {
       const cl = clipOf(b), w = cl.words[+b.dataset.w];
+      if (cl.inserted || cl.discarded) return;
       if (w.flag) { w.flag = null; w.twi = ''; w.en = ''; } else w.flag = 'manual';
+      w.checked = false;
       renderPatient(); return;
     }
     case 'word-replay': {
       const cl = clipOf(b), w = cl.words[+b.dataset.idx];
       const timed = Number.isFinite(w.start) && Number.isFinite(w.end) && w.end > w.start;
-      if (!timed) { toast('This word has no timing, so the whole clip will play.'); return playPCM(cl.pcm); }
-      return playPCM(cl.pcm, w.start - 0.4, w.end + 0.6);
+      if (!timed) toast('This word has no timing, so the whole clip will play.');
+      const played = await playPCM(cl.pcm, timed ? w.start - 0.4 : 0, timed ? w.end + 0.6 : null);
+      if (played && !cl.discarded && cl.pcm) {
+        w.replayed = true; renderPatient();
+        if (w.needsReview && !cl.inserted) $('#word-check-' + b.dataset.clip + '-' + b.dataset.idx)?.focus();
+      }
+      return;
+    }
+    case 'word-check': {
+      const cl = clipOf(b), w = cl.words[+b.dataset.idx];
+      if (cl.inserted || cl.discarded || !w.needsReview) return;
+      if (!w.replayed) return toast('Replay this word before confirming its wording.');
+      if (w.flag && !w.en.trim()) return toast('Enter the checked English meaning first.');
+      w.checked = !w.checked; renderPatient(); $('#word-check-' + b.dataset.clip + '-' + b.dataset.idx)?.focus(); return;
     }
     case 'mark-replay': { const cl = clipOf(b), m = cl.markers[+b.dataset.idx]; return playPCM(cl.pcm, Math.max(0, m.t - 2.5), m.t + 1); }
     case 'mark-dismiss': { clipOf(b).markers[+b.dataset.idx].dismissed = true; renderPatient(); return; }
-    case 'clip-replay': return playPCM(clipOf(b).pcm);
+    case 'clip-replay': {
+      const cl = clipOf(b), played = await playPCM(cl.pcm);
+      if (played && !cl.discarded && cl.pcm) {
+        cl.replayed = true; cl.words.forEach(w => { w.replayed = true; }); renderPatient();
+      }
+      return;
+    }
     case 'clip-insert': return insertClip(clipOf(b));
     case 'clip-discard': {
       if (!confirm('Discard this recording? Its audio and text will be deleted.')) return;
+      stopPlayback();
       const cl = clipOf(b); if (cl.pcm) { cl.pcm.fill(0); cl.pcm = null; } cl.discarded = true; renderAll(); return;
     }
     case 'field-dictate': {
@@ -1367,7 +1566,16 @@ document.addEventListener('input', e => {
   if (t.id === 'c-ref') { S.consult.patientRef = t.value; renderSave(); return; }
   if (k === 'flag') {
     const cl = clipOf(t), item = t.dataset.kind === 'w' ? cl.words[+t.dataset.idx] : cl.markers[+t.dataset.idx];
-    item[t.dataset.key] = t.value; return;
+    if (cl.inserted || cl.discarded) return;
+    item[t.dataset.key] = t.value;
+    if (t.dataset.kind === 'w' && item.needsReview) { item.checked = false; updateWordReview(+t.dataset.clip, +t.dataset.idx); }
+    if (cl.fullReviewRequired || cl.suspect) { cl.ack = false; $('#clip-ack-' + t.dataset.clip).checked = false; }
+    return;
+  }
+  if (k === 'word-edit') {
+    const cl = clipOf(t), w = cl.words[+t.dataset.idx];
+    if (cl.inserted || cl.discarded) return;
+    w.text = t.value; w.checked = false; updateWordReview(+t.dataset.clip, +t.dataset.idx); return;
   }
   if (k === 'field') {
     const st = S.consult.fields[t.dataset.f]; touch(); st.text = t.value;
@@ -1380,11 +1588,15 @@ document.addEventListener('change', e => {
   if (t.id === 'lk-import') { if (t.files && t.files[0]) importBackup(t.files[0]); t.value = ''; return; }
   if (t.name === 'mode') { if (R.rec) { toast('Finish the current recording first.'); t.checked = false; $(`input[name=mode][value=${S.consult.mode}]`).checked = true; return; } S.consult.mode = t.value; renderAll(); return; }
   if (t.id === 'c-consent') { S.consult.consent = t.checked; renderPatient(); return; }
-  if (k === 'clip-ack') { clipOf(t).ack = t.checked; return; }
+  if (k === 'clip-ack') { const cl = clipOf(t); cl.ack = cl.replayed && t.checked; t.checked = cl.ack; return; }
   if (k === 'flag' && t.dataset.key === 'twi') {
     const cl = clipOf(t), item = t.dataset.kind === 'w' ? cl.words[+t.dataset.idx] : cl.markers[+t.dataset.idx];
     const hit = getGloss().find(x => x.twi.toLowerCase() === t.value.trim().toLowerCase());
-    if (hit && !item.en.trim()) { item.en = hit.en; const enIn = t.closest('.pair').querySelector('[data-key=en]'); if (enIn) enIn.value = hit.en; toast('English meaning filled from the glossary. Check it fits.'); }
+    if (hit && !item.en.trim()) {
+      item.en = hit.en; const enIn = t.closest('.pair').querySelector('[data-key=en]'); if (enIn) enIn.value = hit.en;
+      if (t.dataset.kind === 'w' && item.needsReview) { item.checked = false; updateWordReview(+t.dataset.clip, +t.dataset.idx); }
+      toast('English meaning filled from the glossary. Check it fits.');
+    }
     return;
   }
 });
