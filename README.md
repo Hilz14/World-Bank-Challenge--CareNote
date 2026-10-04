@@ -95,3 +95,7 @@ The in-app Twi highlighting log measures manual marking coverage, not model reco
 ### Recording-time Twi audio marks
 
 Each press of **Mark Twi word** creates an independent audio placeholder in the draft, including when the English model returns no text for that moment. Tap the placeholder to open replay and clinician-entered wording and meaning. Placement uses speech timestamps and is approximate; without word timings, placeholders appear after the draft. Recording-time marks do not replace nearby English words. A checked English meaning is required before adding a marked recording, or the clinician can explicitly dismiss an accidental mark. Replay includes 2.5 seconds before and up to 5 seconds after the mark. The clinician checks the final section and position before saving. This is manual language support, not automatic Twi recognition or translation.
+
+### Correcting section routing
+
+Spoken section titles are recognised at the start, after punctuation, after a pause of at least 0.6 seconds, or with a heading followed by a subject such as “The patient” or “My”. Routing is heuristic, not clinical reasoning. Inspect **Preview note sections** before adding the recording. **Note section** can send a whole consultation recording to one selected section; choose Automatic to restore spoken-title routing. Field dictation keeps its original destination. Final section review remains required.

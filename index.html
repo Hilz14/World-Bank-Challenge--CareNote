@@ -1111,7 +1111,7 @@ async function finishField(fid) {
   }
 }
 // Sorting by spoken section names. A simple rule, not AI: a section name counts only at the start
-// of the recording or straight after punctuation, so ordinary words like "plan" mid-sentence are left alone.
+// of the recording, after punctuation or a pause, or with a clear heading-and-subject pattern.
 const SECTION_LABELS = [
   ['complaint', ['presenting', 'complaint']], ['complaint', ['chief', 'complaint']], ['complaint', ['complaint']], ['complaint', ['complaints']],
   ['account', ["patient's", 'account']], ['account', ['patients', 'account']], ['account', ['patient', 'account']], ['account', ['account']],
@@ -1124,10 +1124,17 @@ const normWord = t => t.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[
 function splitSections(words) {
   const segs = []; let cur = { field: 'account', idx: [] };
   for (let i = 0; i < words.length;) {
-    const boundary = i === 0 || /[.!?,;:]$/.test(words[i - 1].text.trim());
+    const prev = words[i - 1], word = words[i];
+    const paused = prev && Number.isFinite(prev.end) && Number.isFinite(word.start) && word.start - prev.end >= 0.6;
+    const boundary = i === 0 || /[.!?,;:]$/.test(prev.text.trim()) || paused;
     let hit = null;
-    if (boundary) for (const [field, seq] of SECTION_LABELS) {
-      if (seq.every((s, k) => words[i + k] && normWord(words[i + k].text) === s)) { hit = { field, len: seq.length }; break; }
+    for (const [field, seq] of SECTION_LABELS) {
+      if (!seq.every((s, k) => words[i + k] && normWord(words[i + k].text) === s)) continue;
+      const last = words[i + seq.length - 1], next = normWord(words[i + seq.length]?.text || '');
+      // ASR often omits punctuation between a spoken heading and its content.
+      const subject = /^(?:the|my|i|she|he|patient|clinician|no|followup)$/.test(next);
+      const heading = /[:.]$/.test(last.text.trim()) || subject;
+      if (boundary || heading) { hit = { field, len: seq.length }; break; }
     }
     if (hit) { if (cur.idx.length) segs.push(cur); cur = { field: hit.field, idx: [] }; i += hit.len; continue; }
     cur.idx.push(i); i++;
@@ -1146,8 +1153,9 @@ function markerText(m, forPreview) {
 }
 function clipRouting(cl, forPreview) {
   const out = {};
-  const sections = cl.targetField ? [{ field: cl.targetField, idx: cl.words.map((_, i) => i) }] : splitSections(cl.words);
-  if (!sections.length) sections.push({ field: cl.targetField || 'account', idx: [] });
+  const destination = cl.routeField || cl.targetField;
+  const sections = destination ? [{ field: destination, idx: cl.words.map((_, i) => i) }] : splitSections(cl.words);
+  if (!sections.length) sections.push({ field: destination || 'account', idx: [] });
   const marks = cl.markers.filter(m => !m.attached && !m.dismissed);
   const buckets = sections.map(() => []);
   for (const m of marks) {
@@ -1292,6 +1300,7 @@ function clipHTML(cl, i) {
     <div class="cliphead"><h3>Recording ${i + 1}${cl.targetField ? ': ' + esc(FIELDS.find(f => f.id === cl.targetField).label) + ' dictation' : ''}</h3><span class="meta">${cl.duration.toFixed(1)} s${cl.noWords ? ', no word timings' : ''}</span>
       <span class="tag ${ro ? 'ok' : ''}">${ro ? 'Added for review' : 'Draft: check against audio'}</span></div>
     ${cl.suspect ? '<div class="warn" role="alert"><p>The speech model may have added wording that was not spoken. Replay the full recording and check the transcript.</p></div>' : ''}
+    ${!cl.targetField ? `<label>Note section<select data-input="clip-section" data-clip="${i}"><option value="" ${!cl.routeField ? 'selected' : ''}>Automatic: use spoken section titles</option>${FIELDS.map(f => `<option value="${f.id}" ${cl.routeField === f.id ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select></label><p class="hint small">Check the section preview. To send this whole recording to one section, choose it here.</p>` : ''}
     <div class="auto-check" id="clip-checks-${i}" role="status">${clipCheckSummary(cl)}</div>
     <p class="hint small">Confirm all wording only after checking the complete draft. Replay is available when needed.</p>
     ${cl.suspect || cl.fullReviewRequired ? `<label class="check"><input type="checkbox" id="clip-ack-${i}" data-input="clip-ack" data-clip="${i}" ${cl.ack ? 'checked' : ''} ${ro ? 'disabled' : ''}> I checked the full transcript and confirm its wording</label>` : ''}
@@ -1714,6 +1723,10 @@ document.addEventListener('change', e => {
   if (t.id === 'lk-import') { if (t.files && t.files[0]) importBackup(t.files[0]); t.value = ''; return; }
   if (t.name === 'mode') { if (R.rec) { toast('Finish the current recording first.'); t.checked = false; $(`input[name=mode][value=${S.consult.mode}]`).checked = true; return; } S.consult.mode = t.value; renderAll(); return; }
   if (t.id === 'c-consent') { S.consult.consent = t.checked; renderPatient(); return; }
+  if (k === 'clip-section') {
+    const cl = clipOf(t); if (cl.inserted || cl.discarded || cl.targetField) return;
+    cl.routeField = FIELDS.some(f => f.id === t.value) ? t.value : ''; renderPatient(); return;
+  }
   if (k === 'clip-ack') { const cl = clipOf(t); cl.ack = t.checked; t.checked = cl.ack; return; }
   if (k === 'flag' && t.dataset.key === 'twi') {
     const cl = clipOf(t), item = t.dataset.kind === 'w' ? cl.words[+t.dataset.idx] : cl.markers[+t.dataset.idx];

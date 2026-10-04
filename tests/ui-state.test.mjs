@@ -221,6 +221,15 @@ assert.match(recording.node('#save').innerHTML, /disabled/);
 assert.match(recording.node('#patient').innerHTML, /class="added-clip"/);
 assert.doesNotMatch(recording.node('#patient').innerHTML, /data-input="word-edit"/);
 
+// Spoken headings must work when ASR drops sentence punctuation.
+const headings = makeHarness(html);
+headings.run("const unpunctuated = {words: 'Complaint The patient reports headache Account My headache started Tuesday Findings The patient is alert Plan The clinician will review Medicines The patient took paracetamol Follow up Followup arrangements are pending'.split(' ').map(text => ({text,start:null,end:null})),markers:[]};");
+assert.deepEqual(JSON.parse(JSON.stringify(headings.run('clipRouting(unpunctuated, false).map(r => r.field)'))), ['complaint','account','findings','plan','medicines','followup']);
+assert.equal(headings.run("splitSections('I plan to return and check my account tomorrow'.split(' ').map(text => ({text})))[0].field"), 'account');
+assert.equal(headings.run("splitSections([{text:'headache',start:0,end:1},{text:'Medicines',start:2,end:2.5},{text:'paracetamol',start:2.5,end:3}])[1].field"), 'medicines');
+headings.run("unpunctuated.routeField = 'plan'");
+assert.deepEqual(JSON.parse(JSON.stringify(headings.run('clipRouting(unpunctuated, false).map(r => r.field)'))), ['plan']);
+
 // First-time clinicians can start directly; existing accounts lead with PIN sign-in.
 const navigation = makeHarness(html);
 navigation.run('newConsult(); renderLock()');
