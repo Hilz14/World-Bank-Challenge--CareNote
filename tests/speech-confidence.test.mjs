@@ -105,12 +105,11 @@ failing.run('newConsult(); const unscored = buildClip({ ...result, pcm, duration
 assert.equal(failing.run('unscored.fullReviewRequired'), true);
 assert.match(failing.run('clipBlockers(unscored)'), /scores are unavailable/);
 failing.run('unscored.ack = true');
-assert.match(failing.run('clipBlockers(unscored)'), /Replay the full recording/);
-failing.run('unscored.replayed = true');
+assert.equal(failing.run('unscored.replayed'), false, 'Transcript acknowledgement does not imply playback.');
 assert.equal(failing.run('clipBlockers(unscored)'), null);
 
 // Lower scores and missing scores are review flags, not Twi flags. Correction,
-// playback and confirmation must gate insertion, with approval reset on edits.
+// confirmation gates insertion, with approval reset on edits; replay is optional.
 const review = makeHarness(html);
 review.context.pcm = new Float32Array(2 * 16000);
 review.run(`newConsult(); S.key = {}; S.consult.patientRef = 'FICTIONAL-REVIEW';
@@ -127,11 +126,13 @@ assert.equal(review.run('cl.words[1].flag'), null, 'Opening an automatic flag mu
 assert.match(review.node('#patient').innerHTML, /Mark as Twi/);
 assert.match(review.run('clipBlockers(cl)'), /2 flagged words/);
 await click(review, 'word-check', { clip: '0', idx: '1' });
+assert.equal(review.run('cl.words[1].checked'), true);
+assert.equal(review.run('cl.words[1].replayed'), false);
+await click(review, 'word-check', { clip: '0', idx: '1' });
 assert.equal(review.run('cl.words[1].checked'), false);
-assert.match(review.node('#toast').textContent, /Replay this word/);
 
 // Real playback lifecycle with a fake audio device: starting or interrupting
-// playback is insufficient. The completed audio event enables confirmation.
+// playback does not count as confirmation. Replay completion remains accurately tracked.
 const players = [], revoked = [];
 class AudioFixture {
   constructor(src) { this.src = src; this.events = new Map(); this.ended = false; players.push(this); }
@@ -164,10 +165,17 @@ assert.equal(review.run('cl.words[1].text'), 'five');
 assert.equal(review.node('#word-check-0-1')['aria-pressed'], 'false');
 await click(review, 'word-check', { clip: '0', idx: '1' });
 
+await click(review, 'clip-confirm-all', { clip: '0' });
+assert.ok(review.run('cl.words.every(w => w.checked)'));
+assert.equal(review.run('cl.ack'), true);
+review.run('cl.words[2].checked = false');
+
 // A low-scoring Twi item keeps separate source/meaning and review requirements.
 await click(review, 'word', { clip: '0', w: '2' });
 assert.equal(review.run('cl.words[2].flag'), 'manual');
-review.run("cl.words[2].replayed = true; cl.words[2].twi = 'fictional source'; cl.words[2].en = 'checked meaning';");
+await click(review, 'clip-confirm-all', { clip: '0' });
+assert.equal(review.run('cl.words[2].checked'), false, 'Bulk confirmation must not approve a Twi item without meaning.');
+review.run("cl.words[2].replayed = false; cl.words[2].twi = 'fictional source'; cl.words[2].en = 'checked meaning';");
 await click(review, 'word-check', { clip: '0', idx: '2' });
 assert.equal(review.run('clipBlockers(cl)'), null);
 const meaning = review.node('#fictional-twi-meaning');

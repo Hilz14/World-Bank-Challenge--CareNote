@@ -542,7 +542,7 @@ nav.tabs button[aria-current=page]{background:#E3EDE5;color:var(--primary);box-s
           <li>Turns the consultation into a written record, using a speech model that runs on this device.</li>
           <li>Sorts the text into record sections when the clinician says a section name, such as "Medicines". This is a simple rule, not AI, and the clinician sees where everything will go before adding it.</li>
           <li>Lets the clinician highlight Twi words the patient used, replay just that moment, and write the meaning. Confirmed translations build a local glossary.</li>
-          <li>Flags words with lower speech-model scores for clinician review. Each flagged word must be replayed and its wording or Twi meaning confirmed before adding the recording.</li>
+          <li>Flags words with lower speech-model scores for clinician review. Flagged wording or Twi meaning must be confirmed before adding the recording. Clinicians can confirm individually or confirm all wording; replay is optional.</li>
         </ul>
         <h3>What it does not do</h3>
         <ul>
@@ -567,7 +567,7 @@ nav.tabs button[aria-current=page]{background:#E3EDE5;color:var(--primary);box-s
           <li>Speech model: <a href="https://huggingface.co/Xenova/whisper-tiny.en" target="_blank" rel="noopener noreferrer">Xenova/whisper-tiny.en</a>, an ONNX conversion of OpenAI Whisper Tiny English. The converted model card declares Apache 2.0.</li>
           <li>Model files reported by the loader: <span id="about-model"></span> This excludes other app and runtime assets.</li>
           <li>Automatic Twi transcription is unsupported. Accuracy on Ghanaian English and mixed speech needs direct testing; check omissions and correction time.</li>
-          <li>Automatic review uses the lowest decoder token probability within each word, with an initial threshold of 0.5. These scores and the threshold have not been clinically calibrated. No accuracy percentage is shown. If scores are unavailable, the clinician must replay and confirm the full recording.</li>
+          <li>Automatic review uses the lowest decoder token probability within each word, with an initial threshold of 0.5. These scores and the threshold have not been clinically calibrated. No accuracy percentage is shown. If scores are unavailable, the clinician must check and confirm the full transcript; replay is optional.</li>
         </ul>
         <h3>Offline status</h3>
         <p id="about-offline"></p>
@@ -1170,11 +1170,11 @@ function clipRouting(cl, forPreview) {
 }
 function clipBlockers(cl) {
   const missing = cl.words.filter(w => w.flag && !w.en.trim()).length + cl.markers.filter(m => !m.attached && !m.dismissed && !m.en.trim()).length;
-  if (cl.suspect && (!cl.replayed || !cl.ack)) return 'Replay the recording and tick the check box before adding it.';
-  if (cl.fullReviewRequired && (!cl.replayed || !cl.ack)) return 'Word scores are unavailable. Replay the full recording and confirm its wording before adding it.';
+  if (cl.suspect && !cl.ack) return 'Check the transcript and confirm its wording before adding it.';
+  if (cl.fullReviewRequired && !cl.ack) return 'Word scores are unavailable. Check the full transcript and confirm its wording before adding it.';
   if (missing) return `Write the English meaning for ${missing} Twi item${missing > 1 ? 's' : ''}, or remove the highlight, first.`;
-  const unchecked = cl.words.filter(w => w.needsReview && (!w.checked || !w.replayed)).length;
-  if (unchecked) return `Replay and confirm ${unchecked} flagged word${unchecked === 1 ? '' : 's'} before adding this recording.`;
+  const unchecked = cl.words.filter(w => w.needsReview && !w.checked).length;
+  if (unchecked) return `Check and confirm ${unchecked} flagged word${unchecked === 1 ? '' : 's'} before adding this recording.`;
   return null;
 }
 function insertClip(cl) {
@@ -1256,7 +1256,7 @@ function renderPatient() {
     ${c.mode !== 'typing' && !recHere && !S.busy ? '<div class="section-cues" aria-label="Spoken section names"><strong class="section-cues-label">Optional: say a section name to organise your note.</strong><span>Complaint</span><span>Account</span><span>Findings</span><span>Plan</span><span>Medicines</span><span>Follow-up</span></div>' : ''}
     ${S.busy === 'patient' ? '<p class="live" aria-live="polite">Transcribing this recording on your device. Please wait.</p>' : ''}
     ${!recHere && !S.busy ? '<p class="language-note"><strong>AI drafts English.</strong> You check the wording and enter any Twi meaning.</p>' : ''}
-    <details class="help"><summary>Dictation help</summary><p>Start a clip with a section name, followed by its text. Text without a section name goes into the patient's account. Section routing uses simple rules.</p><p>Words labelled <strong>Check</strong> need review. Replay each one, correct the wording if needed and confirm it. A word without a flag can still be wrong; check the full draft.</p><p>Press <strong>Mark Twi word</strong> while recording. After transcription, tap an unflagged word to mark Twi or choose <strong>Mark as Twi</strong> within its review controls. Replay the marked moment, enter the wording and meaning, and check the full clip. Dictation from a record field uses the same review step before being added to that field.</p></details>
+    <details class="help"><summary>Dictation help</summary><p>Start a clip with a section name, followed by its text. Text without a section name goes into the patient's account. Section routing uses simple rules.</p><p>Words labelled <strong>Check</strong> need review. Check each one, correct the wording if needed and confirm it. Replay is optional. A word without a flag can still be wrong; check the full draft.</p><p>Press <strong>Mark Twi word</strong> while recording. After transcription, tap an unflagged word to mark Twi or choose <strong>Mark as Twi</strong> within its review controls. Replay the marked moment, enter the wording and meaning, and check the full clip. Dictation from a record field uses the same review step before being added to that field.</p></details>
     ${c.clips.map((cl, i) => clipHTML(cl, i)).join('')}`;
 }
 function clipHTML(cl, i) {
@@ -1276,10 +1276,11 @@ function clipHTML(cl, i) {
       <span class="tag ${ro ? 'ok' : ''}">${ro ? 'Added for review' : 'Draft: check against audio'}</span></div>
     ${cl.suspect ? '<div class="warn" role="alert"><p>The speech model may have added wording that was not spoken. Replay the full recording and check the transcript.</p></div>' : ''}
     <div class="auto-check" id="clip-checks-${i}" role="status">${clipCheckSummary(cl)}</div>
-    ${cl.suspect || cl.fullReviewRequired ? `<label class="check"><input type="checkbox" id="clip-ack-${i}" data-input="clip-ack" data-clip="${i}" ${cl.ack ? 'checked' : ''} ${ro || !cl.replayed ? 'disabled' : ''}> I replayed the full recording and checked the transcript${!cl.replayed && !ro ? ' (use Replay clip first)' : ''}</label>` : ''}
+    <p class="hint small">Confirm all wording only after checking the complete draft. Replay is available when needed.</p>
+    ${cl.suspect || cl.fullReviewRequired ? `<label class="check"><input type="checkbox" id="clip-ack-${i}" data-input="clip-ack" data-clip="${i}" ${cl.ack ? 'checked' : ''} ${ro ? 'disabled' : ''}> I checked the full transcript and confirm its wording</label>` : ''}
     <p class="transcript">${cl.words.length ? cl.words.map((w, wi) => `<button type="button" id="clip-word-${i}-${wi}" class="w ${w.flag ? 'flag' : ''} ${w.needsReview && !w.checked ? 'needs-review' : ''}" data-action="${w.needsReview && !w.checked ? 'review-word' : 'word'}" data-clip="${i}" data-w="${wi}" aria-label="${esc(wordButtonLabel(w))}" ${w.needsReview && !w.checked ? '' : `aria-pressed="${!!w.flag}"`} ${ro ? 'disabled' : ''}>${esc(w.text || '(removed)')}</button>`).join(' ') : '<em>No words recognised.</em>'}</p>
     ${ro ? '' : '<p class="hint small">Tap a Check word to open its review. Other words can be tapped to mark Twi. Every Twi mark needs a checked English meaning.</p>'}
-    ${uncertain.length ? `<div class="word-checks" aria-label="Words requiring clinician review">${ro ? '' : '<p class="hint">Replay each flagged word before confirming. Leave its wording blank to omit a word that was not spoken.</p>'}${uncertain.map(({ w, wi }) => wordReviewRow(i, wi, w, ro)).join('')}</div>` : ''}
+    ${uncertain.length ? `<div class="word-checks" aria-label="Words requiring clinician review">${ro ? '' : '<p class="hint">Check the flagged wording and confirm it. Replay is optional. Leave its wording blank to omit a word that was not spoken.</p>'}${uncertain.map(({ w, wi }) => wordReviewRow(i, wi, w, ro)).join('')}</div>` : ''}
     ${(() => { const rs = clipRouting(cl, true); return rs.length ? `<details class="draft-destination"><summary>Preview note sections</summary><div class="route"><ul>${rs.map(r => `<li><strong>${FIELDS.find(f => f.id === r.field).label}:</strong> ${esc(r.text)}</li>`).join('')}</ul></div></details>` : ''; })()}
     ${flagged.length || loose.length ? `<div class="flags">
       ${flagged.map(({ w, wi }) => flagRow(i, 'w', wi, `Heard as \u201C${esc(w.text)}\u201D`, w, w.flag === 'marker' ? 'Suggested from your Twi mark' : 'Marked by you', ro)).join('')}
@@ -1287,19 +1288,20 @@ function clipHTML(cl, i) {
     </div>` : ''}
     <div class="actions">
       <button class="btn" data-action="clip-replay" data-clip="${i}" ${cl.pcm ? '' : 'disabled'}>Replay clip</button>
+      <button class="btn" data-action="clip-confirm-all" data-clip="${i}">Confirm all wording</button>
       ${ro ? '' : `<button class="btn primary" data-action="clip-insert" data-clip="${i}">Add to clinical note</button>
       <button class="btn quiet" data-action="clip-discard" data-clip="${i}">Discard recording</button>`}
     </div></article>`;
 }
 function clipCheckSummary(cl) {
-  if (cl.fullReviewRequired) return '<strong>Automatic word checks unavailable.</strong> Replay and confirm the full recording before adding it.';
-  const flagged = cl.words.filter(w => w.needsReview), pending = flagged.filter(w => !w.checked || !w.replayed).length;
-  if (pending) return `<strong>${pending} word${pending === 1 ? '' : 's'} need${pending === 1 ? 's' : ''} review.</strong> Replay, correct if needed and confirm each flag.`;
+  if (cl.fullReviewRequired) return '<strong>Automatic word checks unavailable.</strong> Check the full transcript and confirm its wording before adding it. Replay is optional.';
+  const flagged = cl.words.filter(w => w.needsReview), pending = flagged.filter(w => !w.checked).length;
+  if (pending) return `<strong>${pending} word${pending === 1 ? '' : 's'} need${pending === 1 ? 's' : ''} review.</strong> Check, correct if needed and confirm each flag. Replay is optional.`;
   if (flagged.length) return `<strong>${flagged.length} flagged word${flagged.length === 1 ? '' : 's'} reviewed.</strong> Check the rest of the draft before adding it.`;
   return '<strong>No words flagged by the model.</strong> Check the full draft; unflagged words can still be wrong.';
 }
 function wordCheckButton(ci, wi, w, ro) {
-  return `<button class="btn small ${w.checked ? 'ok' : ''}" id="word-check-${ci}-${wi}" data-action="word-check" data-clip="${ci}" data-idx="${wi}" aria-pressed="${!!w.checked}" ${ro || !w.replayed || (w.flag && !w.en.trim()) ? 'disabled' : ''}>${w.checked ? 'Reviewed' : w.flag ? 'Confirm Twi meaning' : 'Confirm wording'}</button>`;
+  return `<button class="btn small ${w.checked ? 'ok' : ''}" id="word-check-${ci}-${wi}" data-action="word-check" data-clip="${ci}" data-idx="${wi}" aria-pressed="${!!w.checked}" ${ro || (w.flag && !w.en.trim()) ? 'disabled' : ''}>${w.checked ? 'Reviewed' : w.flag ? 'Confirm Twi meaning' : 'Confirm wording'}</button>`;
 }
 function wordButtonLabel(w) {
   return `${w.text || 'Word removed'}; ${w.needsReview && !w.checked ? 'needs review, open review controls' : `tap to ${w.flag ? 'remove' : 'add'} Twi mark`}`;
@@ -1317,7 +1319,7 @@ function updateWordReview(ci, wi) {
   if (b) {
     b.textContent = w.checked ? 'Reviewed' : w.flag ? 'Confirm Twi meaning' : 'Confirm wording';
     b.classList.toggle('ok', !!w.checked); b.setAttribute('aria-pressed', String(!!w.checked));
-    b.disabled = cl.inserted || !w.replayed || !!(w.flag && !w.en.trim());
+    b.disabled = cl.inserted || !!(w.flag && !w.en.trim());
   }
   $('#word-review-' + ci + '-' + wi)?.classList.toggle('checked', !!w.checked);
   const word = $('#clip-word-' + ci + '-' + wi);
@@ -1339,7 +1341,7 @@ function flagRow(ci, kind, idx, title, item, src, ro) {
     <div class="pair">
       <label>Twi wording <span class="req">(clinician entered)</span><input list="gloss-twi" data-input="flag" data-kind="${kind}" data-key="twi" data-clip="${ci}" data-idx="${idx}" value="${esc(item.twi)}" ${d} autocomplete="off" spellcheck="false"></label>
       <label>Checked English meaning<input data-input="flag" data-kind="${kind}" data-key="en" data-clip="${ci}" data-idx="${idx}" value="${esc(item.en)}" ${d} autocomplete="off"></label>
-    </div>${kind === 'w' && item.needsReview ? `<p class="hint">Needs review: confirm this Twi meaning after replay.</p>${wordCheckButton(ci, idx, item, ro)}` : ''}</div>`;
+    </div>${kind === 'w' && item.needsReview ? `<p class="hint">Needs review: check and confirm this Twi meaning. Replay is optional.</p>${wordCheckButton(ci, idx, item, ro)}` : ''}</div>`;
 }
 function checkTokens(t) {
   const re = /\b\d+(?:\.\d+)?\s?(?:mg|mcg|g|ml|tabs?|tablets?|capsules?|caps|times?|days?|weeks?|hours?|hrs?|units?|%)?/gi;
@@ -1576,10 +1578,16 @@ document.addEventListener('click', async e => {
       }
       return;
     }
+    case 'clip-confirm-all': {
+      const cl = clipOf(b);
+      if (cl.inserted || cl.discarded) return;
+      if (cl.words.some(w => w.flag && !w.en.trim()) || cl.markers.some(m => !m.attached && !m.dismissed && !m.en.trim())) return toast('Enter the checked English meaning for each Twi mark first.');
+      cl.words.forEach(w => { w.checked = true; }); cl.ack = true;
+      renderPatient(); toast('All wording confirmed. Review the clinical note before saving.'); return;
+    }
     case 'word-check': {
       const cl = clipOf(b), w = cl.words[+b.dataset.idx];
       if (cl.inserted || cl.discarded || !w.needsReview) return;
-      if (!w.replayed) return toast('Replay this word before confirming its wording.');
       if (w.flag && !w.en.trim()) return toast('Enter the checked English meaning first.');
       w.checked = !w.checked; renderPatient(); $('#word-check-' + b.dataset.clip + '-' + b.dataset.idx)?.focus(); return;
     }
@@ -1685,7 +1693,7 @@ document.addEventListener('change', e => {
   if (t.id === 'lk-import') { if (t.files && t.files[0]) importBackup(t.files[0]); t.value = ''; return; }
   if (t.name === 'mode') { if (R.rec) { toast('Finish the current recording first.'); t.checked = false; $(`input[name=mode][value=${S.consult.mode}]`).checked = true; return; } S.consult.mode = t.value; renderAll(); return; }
   if (t.id === 'c-consent') { S.consult.consent = t.checked; renderPatient(); return; }
-  if (k === 'clip-ack') { const cl = clipOf(t); cl.ack = cl.replayed && t.checked; t.checked = cl.ack; return; }
+  if (k === 'clip-ack') { const cl = clipOf(t); cl.ack = t.checked; t.checked = cl.ack; return; }
   if (k === 'flag' && t.dataset.key === 'twi') {
     const cl = clipOf(t), item = t.dataset.kind === 'w' ? cl.words[+t.dataset.idx] : cl.markers[+t.dataset.idx];
     const hit = getGloss().find(x => x.twi.toLowerCase() === t.value.trim().toLowerCase());
